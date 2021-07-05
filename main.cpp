@@ -282,7 +282,7 @@ std::vector<handarg> globals;
 std::string getDefineGlobalsText(){
     std::stringstream s;
     for(auto& global : globals){
-        s << getCTypeNameForLLVMType(global.getType()) << " " << global.getName() << ";" << std::endl;
+        s << "extern " << getCTypeNameForLLVMType(global.getType()) << " " << global.getName() << ";" << std::endl;
     }
 
     return s.str();
@@ -291,15 +291,21 @@ std::string getDefineGlobalsText(){
 
 // thus we only need a function which converts has a one-to-one with LLVM to c++ types,
 
-std::string getParserSetupTextForScalarType(std::string name, Type* type){
+std::string getParserSetupTextForScalarType(std::string name, Type* type, bool isGlobal = false){
     std::stringstream s;
+    std::string requiredString = ".required()";
+    if(isGlobal){
+        name = "global." + name;
+        requiredString = ""; //dirty hack
+    }
+
     if(type->isIntegerTy(32)){
-        s << "\t" << "parser.add_argument(\"--" << name << "\").required()" <<
+        s << "\t" << "parser.add_argument(\"--" << name << "\")" << requiredString <<
                                                            ".help(\"" << getCTypeNameForLLVMType(type) << "\")" <<
                                                            ".action([](const std::string& value) {return stoi(value);});" << std::endl;
     }
     if(type->isIntegerTy(8))
-        s << "\t" << "parser.add_argument(\"--" << name << "\").required()" <<
+        s << "\t" << "parser.add_argument(\"--" << name << "\")" << requiredString <<
                                                             ".help(\"" << getCTypeNameForLLVMType(type) << "\")" <<
                                                             ".action([](const std::string& value) {return value.at(0);});" << std::endl;
 
@@ -310,10 +316,17 @@ std::string getParserSetupTextForScalarType(std::string name, Type* type){
 
 
 
-std::string getParserSetupTextFromLLVMTypes(std::vector<std::string> name_prefix, Type* arg){
+std::string getParserSetupTextFromLLVMTypes(std::vector<std::string> name_prefix, Type* arg, bool isGlobal = false){
     std::stringstream s;
 
-
+    if(arg->isStructTy()){
+        auto str = getStructByLLVMType((StructType*) arg);
+        for(auto& mem : str.getNamedMembers()){
+            std::vector<std::string> memberName(name_prefix);
+            memberName.push_back(mem.first);
+            s << getParserSetupTextFromLLVMTypes(memberName, mem.second, isGlobal);
+        }
+    }
 
     if(arg->isPointerTy() && arg->getPointerElementType()->isStructTy()){
 //        auto structType = arg;
@@ -321,7 +334,7 @@ std::string getParserSetupTextFromLLVMTypes(std::vector<std::string> name_prefix
         for(auto& mem : str.getNamedMembers()){
             std::vector<std::string> memberName(name_prefix);
             memberName.push_back(mem.first);
-            s << getParserSetupTextFromLLVMTypes(memberName, mem.second); // but we need to maintain the counter
+            s << getParserSetupTextFromLLVMTypes(memberName, mem.second, isGlobal); // but we need to maintain the counter
         }
 //            std::string argname = name_prefix + "p" + std::to_string(counter);
         // we dont encode pointers in name so just call recursively
@@ -329,9 +342,9 @@ std::string getParserSetupTextFromLLVMTypes(std::vector<std::string> name_prefix
     }
     else{
         if(arg->isPointerTy())
-            s << getParserSetupTextFromLLVMTypes(name_prefix, arg->getPointerElementType()); // but we need to maintain the counter
+            s << getParserSetupTextFromLLVMTypes(name_prefix, arg->getPointerElementType(), isGlobal); // but we need to maintain the counter
         else
-            s << getParserSetupTextForScalarType(joinStrings(name_prefix, GENERATE_FORMAT_CLI), arg);
+            s << getParserSetupTextForScalarType(joinStrings(name_prefix, GENERATE_FORMAT_CLI), arg, isGlobal);
     }
 
 
@@ -340,17 +353,17 @@ std::string getParserSetupTextFromLLVMTypes(std::vector<std::string> name_prefix
 
 // should include position in loop instead of relying on implicit order
 // wrapper around getParserSetupTextFromType
-std::string getParserSetupTextFromHandargs(std::vector<handarg> args){
+std::string getParserSetupTextFromHandargs(std::vector<handarg> args, bool isForGlobals = false){
     std::stringstream s;
     for(auto& a : args){
-        std:: cout << "printing parser for " << a.getName() << std::endl;
-
         std::vector<std::string> name;
         name.push_back(a.getName());
-        s << getParserSetupTextFromLLVMTypes(name,a.type);
+        s << getParserSetupTextFromLLVMTypes(name,a.type, isForGlobals);
     }
     return s.str();
 }
+
+
 // Names are constructed the following
 // Consider an actual argumetn to the tested function, and call their name root
 // For any scalar type we just print the name
@@ -366,25 +379,42 @@ std::string getParserSetupTextFromHandargs(std::vector<handarg> args){
  * notice that we cannot encode how many extra variables we have made to deal with pointers as we need to keep prefixes only reflect structure depth
  * otherwise the parser.get("--name") we would diverge with the setup
  */
-std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Type* type){
+std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Type* type, bool isForGlobals = false){
     std::stringstream output;
+
 
     // if is pointer, allocate the value and address it directly from the stack
     // expand this such that it allows for arrays
     if(type->isPointerTy()){
         std::vector<std::string> referenced_name(prefixes);
         referenced_name.push_back(POINTER_DENOTATION);
-        output << getParserRetrievalForNamedType(referenced_name, type->getPointerElementType());
-        output << "\t" << getCTypeNameForLLVMType(type) << " " << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = &" << joinStrings(referenced_name, GENERATE_FORMAT_CPP_VARIABLE) << ";" << std::endl;
+        output << getParserRetrievalForNamedType(referenced_name, type->getPointerElementType(), isForGlobals);
+
+        output << "\t";
+        if(!isForGlobals)
+            output << getCTypeNameForLLVMType(type) << " ";
+        output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = &" << joinStrings(referenced_name, GENERATE_FORMAT_CPP_VARIABLE) << ";" << std::endl;
     }
 
 
     // if type is scalar => output directly
-    if(type->isIntegerTy(32))
-        output << "\t" << getCTypeNameForLLVMType(type) << " " << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = parser.get<" << getCTypeNameForLLVMType(type) << ">(\"--" << joinStrings(prefixes, GENERATE_FORMAT_CLI) << "\");" << std::endl;
+    if(type->isIntegerTy(32) || type->isIntegerTy(8)){
+        output << "\t";
+        std::string parserArg = joinStrings(prefixes, GENERATE_FORMAT_CLI);
 
-    if(type->isIntegerTy(8))
-        output << "\t" << getCTypeNameForLLVMType(type) << " " << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = parser.get<" << getCTypeNameForLLVMType(type) << ">(\"--" << joinStrings(prefixes, GENERATE_FORMAT_CLI) << "\");" << std::endl;
+        if(!isForGlobals)
+            output << getCTypeNameForLLVMType(type) << " ";
+
+        else {
+            //wrap in parser.is_used to prevent exceptions on unspecified defined globals
+            parserArg = "global." + parserArg;
+            output << "if(parser.is_used(\"--" << parserArg << "\")){ " << std::endl << "\t\t";
+        }
+        output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = parser.get<" << getCTypeNameForLLVMType(type) << ">(\"--";
+        output << parserArg << "\");" << std::endl;
+        if(isForGlobals)
+            output << "\t}" << std::endl;
+    }
 
 
     // if type is struct, recurse with member names added as prefix
@@ -393,9 +423,12 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
         for(auto member : ds.getNamedMembers()){
             std::vector<std::string> fullMemberName(prefixes);
             fullMemberName.push_back(member.first);
-            output << getParserRetrievalForNamedType(fullMemberName, member.second);
+            output << getParserRetrievalForNamedType(fullMemberName, member.second, isForGlobals);
         }
-        output << "\t" << ds.definedCStructName << " " << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << "{ " << std::endl;
+        output << "\t";
+        if(!isForGlobals)
+            output << ds.definedCStructName << " ";
+        output  << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << "{ " << std::endl;
         for(auto member : ds.getNamedMembers()){
             std::vector<std::string> fullMemberName(prefixes);
             fullMemberName.push_back(member.first);
@@ -408,7 +441,7 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
     return output.str();
 }
 
-std::string getParserRetrievalText(std::vector<handarg> args){
+std::string getParserRetrievalText(std::vector<handarg> args, bool isForGlobals = false){
     std::stringstream s;
 
     for(auto& a : args){
@@ -417,9 +450,9 @@ std::string getParserRetrievalText(std::vector<handarg> args){
 
         // llvm boxes structs always with a pointer?
         if(a.type->isPointerTy() && a.type->getPointerElementType()->isStructTy())
-            s << getParserRetrievalForNamedType(dummy, a.type->getPointerElementType());
+            s << getParserRetrievalForNamedType(dummy, a.type->getPointerElementType(), isForGlobals);
         else{
-            s << getParserRetrievalForNamedType(dummy, a.type);
+            s << getParserRetrievalForNamedType(dummy, a.type, isForGlobals);
         }
     }
     return s.str();
@@ -548,7 +581,7 @@ int main(int argc, char** argv){
         for(auto& global : mod->global_values())
         {
             if(!global.getType()->isFunctionTy()  && !(global.getType()->isPointerTy() && global.getType()->getPointerElementType()->isFunctionTy())  && global.isDSOLocal()){ // should probably do more checks
-                globals.push_back(handarg(global.getName(), 0 , global.getType(), false));
+                globals.push_back(handarg(global.getName(), 0 , global.getType()->getPointerElementType(), false));
             }
         }
 
@@ -565,6 +598,7 @@ int main(int argc, char** argv){
             else
                 argname = "e_" + std::to_string(argcounter);
 
+            // TODO: Make sure that these names don't conflict with globals
             std::cout << "Name: " << argname << " type: " << rso.str() << std::endl;
             args_of_func.push_back(handarg(argname, arg.getArgNo(), arg.getType(), arg.hasByValAttr()));
             argcounter++;
@@ -603,9 +637,13 @@ int main(int argc, char** argv){
                 << "std::stringstream s;"
                 << "s << \"Test program for: " << functionSignature << "\" << std::endl << R\"\"\"("  << getStructDefinitions(args_of_func) << ")\"\"\";" << std::endl
                 << "\tparser = argparse::ArgumentParser(s.str());" << std::endl
-                << getParserSetupTextFromHandargs(args_of_func)  << "} " << std::endl << std::endl;
-        setupfilestream << "void callFunction() { " << std::endl << getParserRetrievalText(args_of_func) << std::endl;
-//        if(f.getReturnType().)
+                << getParserSetupTextFromHandargs(globals, true)
+                << getParserSetupTextFromHandargs(args_of_func)
+                << "} " << std::endl << std::endl;
+        setupfilestream << "void callFunction() { " << std::endl
+        << getParserRetrievalText(globals, true)
+        << getParserRetrievalText(args_of_func)
+        << std::endl;
 
         setupfilestream << "\tstd::cout << " << f.getName().str() << "(" << getUntypedArgumentNames(args_of_func) << ") << std::endl;" << std::endl;
         setupfilestream << "} " << std::endl;
