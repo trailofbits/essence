@@ -274,8 +274,18 @@ std::string getStructDefinitions(std::vector<handarg> args){
     for(auto& a : args){
         defineIfNeeded(a.getType());
     }
-    std::cout << "trying to define following structs: " << definitionStrings.str();
+
     return definitionStrings.str();
+}
+
+std::vector<handarg> globals;
+std::string getDefineGlobalsText(){
+    std::stringstream s;
+    for(auto& global : globals){
+        s << getCTypeNameForLLVMType(global.getType()) << " " << global.getName() << ";" << std::endl;
+    }
+
+    return s.str();
 }
 
 
@@ -471,6 +481,7 @@ std::string getUntypedArgumentNames(std::vector<handarg> args){
 }
 
 
+
 int main(int argc, char** argv){
     InitLLVM X(argc, argv);
     ExitOnErr.setBanner(std::string(argv[0]) + ": error: ");
@@ -534,6 +545,14 @@ int main(int argc, char** argv){
 
 
         std::cout << "Found function: " << f.getName().str() << " pure: " << f.doesNotReadMemory() <<  " accepting arguments: " << std::endl;
+        for(auto& global : mod->global_values())
+        {
+            if(!global.getType()->isFunctionTy()  && !(global.getType()->isPointerTy() && global.getType()->getPointerElementType()->isFunctionTy())  && global.isDSOLocal()){ // should probably do more checks
+                globals.push_back(handarg(global.getName(), 0 , global.getType(), false));
+            }
+        }
+
+
         int argcounter = 0;
         for(auto& arg : f.args()){
 
@@ -547,12 +566,9 @@ int main(int argc, char** argv){
                 argname = "e_" + std::to_string(argcounter);
 
             std::cout << "Name: " << argname << " type: " << rso.str() << std::endl;
-
-
             args_of_func.push_back(handarg(argname, arg.getArgNo(), arg.getType(), arg.hasByValAttr()));
             argcounter++;
         }
-
 
         count++;
 
@@ -578,12 +594,20 @@ int main(int argc, char** argv){
         std::string rettype = "int";
         std::string functionSignature = rettype + " " +  f.getName().str() + "(" + getTypedArgumentNames(args_of_func) + ");";
         setupfilestream << "extern \"C\" " + functionSignature << std::endl;
-        setupfilestream << "argparse::ArgumentParser parser = argparse::ArgumentParser(\"Test program for: "  << functionSignature << "\");" << std::endl << std::endl;
-        setupfilestream << "void setupParser() { " << std::endl << getParserSetupTextFromHandargs(args_of_func)  << "} " << std::endl << std::endl;
+        setupfilestream << "argparse::ArgumentParser parser;" << std::endl << std::endl;
+        setupfilestream << "// globals from module" << std::endl << getDefineGlobalsText()  << std::endl << std::endl;
+
+        //extend parser stuff to include globals
+
+        setupfilestream << "void setupParser() { " << std::endl
+                << "std::stringstream s;"
+                << "s << \"Test program for: " << functionSignature << "\" << std::endl << R\"\"\"("  << getStructDefinitions(args_of_func) << ")\"\"\";" << std::endl
+                << "\tparser = argparse::ArgumentParser(s.str());" << std::endl
+                << getParserSetupTextFromHandargs(args_of_func)  << "} " << std::endl << std::endl;
         setupfilestream << "void callFunction() { " << std::endl << getParserRetrievalText(args_of_func) << std::endl;
 //        if(f.getReturnType().)
 
-        setupfilestream << "\t std::cout << " << f.getName().str() << "(" << getUntypedArgumentNames(args_of_func) << ") << std::endl;" << std::endl;
+        setupfilestream << "\tstd::cout << " << f.getName().str() << "(" << getUntypedArgumentNames(args_of_func) << ") << std::endl;" << std::endl;
         setupfilestream << "} " << std::endl;
 
 
