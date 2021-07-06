@@ -278,7 +278,7 @@ DefinedStruct getStructByLLVMType(StructType* structType){
 std::stringstream definitionStrings;
 
 // Adds itself in the correct order to definitionStream
-void defineIfNeeded(Type* arg){
+void defineIfNeeded(Type* arg, bool isRetType = false){
     //extract if its pointer type
     if(arg->isPointerTy())
         arg = arg->getPointerElementType();
@@ -311,6 +311,8 @@ void defineIfNeeded(Type* arg){
 
             // TODO: use getCPPName instead of getStructName?
             auto structName = getCTypeNameForLLVMType(arg);
+            if(isRetType)
+                structName = "returnType";
             newDefinedStruct.structType = (StructType*) arg;
             if(newDefinedStruct.isUnion)
                 definitionStrings << "typedef union ";
@@ -323,6 +325,20 @@ void defineIfNeeded(Type* arg){
     }
 }
 
+std::string getJSONStructDeclartions(){
+    std::stringstream s;
+
+    for(auto& ds : definedStructs){
+        s << "NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(";
+        s << ds.definedCStructName << ", ";
+        for(auto& mem : ds.getNamedMembers()){
+            s << mem.first << ", ";
+        }
+        s.seekp(-2,s.cur); // removes trialing , by replacing it with )
+        s << ")" << std::endl;
+    }
+    return s.str();
+}
 
 std::string getStructDefinitions(std::vector<handarg> args){
     for(auto& a : args){
@@ -645,6 +661,9 @@ int main(int argc, char** argv){
         output_file = output_file + ".cpp";
         ofs.open(output_file, std::ofstream::out | std::ofstream::trunc);
 
+        Type* funcRetType = f.getReturnType();
+        if(funcRetType->isStructTy())
+            defineIfNeeded(funcRetType, true);
 
         std::cout << "Found function: " << f.getName().str() << " pure: " << f.doesNotReadMemory() <<  " accepting arguments: " << std::endl;
         for(auto& global : mod->global_values())
@@ -689,17 +708,20 @@ int main(int argc, char** argv){
         //print main
 
         std::stringstream setupfilestream;
-        setupfilestream << "#include \"skelmain.hpp\" " << std::endl << std::endl;
+        setupfilestream << "#include \"skelmain.hpp\" " << std::endl;
+        setupfilestream << "#include <nlohmann/json.hpp> // header only lib" << std::endl << std::endl;
         setupfilestream << getStructDefinitions(args_of_func) << std::endl;
 
         setupfilestream << "// still need to fix return types" << std::endl;
 
-        std::string rettype = "int";
-        std::string functionSignature = rettype + " " +  f.getName().str() + "(" + getTypedArgumentNames(args_of_func) + ");";
+        std::string rettype = getCTypeNameForLLVMType(funcRetType);
+        if(funcRetType->isStructTy())
+            rettype = getStructByLLVMType((StructType*)funcRetType).definedCStructName;
+            std::string functionSignature = rettype + " " +  f.getName().str() + "(" + getTypedArgumentNames(args_of_func) + ");";
         setupfilestream << "extern \"C\" " + functionSignature << std::endl;
         setupfilestream << "argparse::ArgumentParser parser;" << std::endl << std::endl;
         setupfilestream << "// globals from module" << std::endl << getDefineGlobalsText()  << std::endl << std::endl;
-
+        setupfilestream << getJSONStructDeclartions() << std::endl;
 
         setupfilestream << parseCharHelperFunctionText << std::endl << std::endl;
         setupfilestream << parseShortHelperFunctionText << std::endl << std::endl;
@@ -717,7 +739,9 @@ int main(int argc, char** argv){
         << getParserRetrievalText(args_of_func)
         << std::endl;
 
-        setupfilestream << "\tstd::cout << " << f.getName().str() << "(" << getUntypedArgumentNames(args_of_func) << ") << std::endl;" << std::endl;
+        // the json library allowed us to setup automatic serialization based on assignment
+        setupfilestream << "\t" << "nlohmann::json j = " << f.getName().str() << "(" << getUntypedArgumentNames(args_of_func) << ");" << std::endl;
+        setupfilestream << "\t" << "std::cout << j << std::endl;" << std::endl;
         setupfilestream << "} " << std::endl;
 
 
