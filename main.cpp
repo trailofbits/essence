@@ -60,12 +60,24 @@ std::string getCTypeNameForLLVMType(Type* type){
     if(type->isPointerTy())
         return getCTypeNameForLLVMType(type->getPointerElementType()) + "*";
 
+//    we don't get a parser for bool
+//    if(type->isIntegerTy(1))
+//        return "bool";
+
+    if(type->isIntegerTy(8))
+        return "char";
+
+    if(type->isIntegerTy(16))
+        return "short";
 
     if(type->isIntegerTy(32))
         return "int";
 
-    if(type->isIntegerTy(8))
-        return "char";
+    if(type->isIntegerTy(64))
+        return "long";
+
+    if(type->isIntegerTy(64))
+        return "long long"; // this makes very strong assumptions on underling structures, should fix this
 
     if(type->isVoidTy())
         return "void";
@@ -78,14 +90,48 @@ std::string getCTypeNameForLLVMType(Type* type){
 
     if(type->isStructTy()){
         std::string s = type->getStructName();
-        s = s.replace(0, 7, ""); //removes struct. prefix, needs to change this to allow for union as well
+        if(s.find("struct.") != std::string::npos)
+            s = s.replace(0, 7, ""); //removes struct. prefix
+
+        else if (s.find("union.") != std::string::npos)
+            s = s.replace(0, 6, ""); //removes union. prefix
         return s;
     }
-    if(type->isVectorTy())
-        return "vector det ected, needs more work";
 
     return "Not supported";
 }
+
+
+std::string parseCharHelperFunctionText = R"""(
+char parseCharInput(const std::string& value){
+    if (value.size() > 2 && value[0] == '\'' && value[2] == '\'') {
+        return value.at(1);
+    }
+
+    if(value.compare("true") == 0){
+        return (char)1;
+    }
+    if(value.compare("false") == 0){
+        return (char)0;
+    }
+
+    int i = std::stoi(value);
+    if (i <= 127 & i >= -128) // there is no std::stoc :/
+        return (char)i;
+
+    throw std::invalid_argument("value does not fit in char");
+}
+)""";
+
+std::string parseShortHelperFunctionText = R"""(
+short parseShortInput(const std::string& value){
+    int i = std::stoi(value);
+    if (i <= 32767 & i >= -32768) // there is no std::stoc :/
+        return (short)i;
+
+    throw std::invalid_argument("value does not fit in char");
+}
+)""";
 //
 //namespace handsanitizer{
 //    class argument{
@@ -159,6 +205,7 @@ public:
 // and save all the member names in DefinedStruct
 class DefinedStruct {
 public:
+    bool isUnion = false;
     StructType* structType;
     std::string definedCStructName;
     std::vector<std::string> member_names; // implicitly ordered, can I make an tuple out of this combined with the member?
@@ -247,6 +294,9 @@ void defineIfNeeded(Type* arg){
             std::cout << "Has members";
             std::stringstream  elementsString;
             DefinedStruct newDefinedStruct;
+            if(arg->getStructName().find("union.") != std::string::npos)
+                newDefinedStruct.isUnion = true;
+
             // all members need to be added, if any struct is referenced we need tto define it again
             for(int i =0 ; i < arg->getStructNumElements(); i++){
                 auto child = arg->getStructElementType(i);
@@ -262,7 +312,11 @@ void defineIfNeeded(Type* arg){
             // TODO: use getCPPName instead of getStructName?
             auto structName = getCTypeNameForLLVMType(arg);
             newDefinedStruct.structType = (StructType*) arg;
-            definitionStrings << "typedef struct " << structName << " { " << std::endl << elementsString.str() << "} " << structName << ";" <<  std::endl <<  std::endl;
+            if(newDefinedStruct.isUnion)
+                definitionStrings << "typedef union ";
+            else
+                definitionStrings << "typedef struct ";
+            definitionStrings << structName << " { " << std::endl << elementsString.str() << "} " << structName << ";" <<  std::endl <<  std::endl;
             newDefinedStruct.definedCStructName = structName;
             definedStructs.push_back(newDefinedStruct);
         }
@@ -298,17 +352,32 @@ std::string getParserSetupTextForScalarType(std::string name, Type* type, bool i
         name = "global." + name;
         requiredString = ""; //dirty hack
     }
+    std::string action = ""; //parsing method
 
-    if(type->isIntegerTy(32)){
+    if(type->isIntegerTy(8))
+        action = "parseCharInput";
+
+    if(type->isIntegerTy(16))
+        action = "parseShortInput";
+
+    if(type->isIntegerTy(32))
+        action = "[](const std::string& value) {return stoi(value);}";
+
+    if(type->isIntegerTy(64))
+        action = "[](const std::string& value) {return stol(value);}";
+
+    if(type->isFloatTy())
+        action = "[](const std::string& value) {return stof(value);}";
+
+    if(type->isDoubleTy())
+        action = "[](const std::string& value) {return stod(value);}";
+
+
+    if(type->isIntegerTy(8) || type->isIntegerTy(16) || type->isIntegerTy(32) || type->isIntegerTy(64) || type->isFloatTy() || type->isDoubleTy()){
         s << "\t" << "parser.add_argument(\"--" << name << "\")" << requiredString <<
                                                            ".help(\"" << getCTypeNameForLLVMType(type) << "\")" <<
-                                                           ".action([](const std::string& value) {return stoi(value);});" << std::endl;
+                                                           ".action(" << action << ");" << std::endl;
     }
-    if(type->isIntegerTy(8))
-        s << "\t" << "parser.add_argument(\"--" << name << "\")" << requiredString <<
-                                                            ".help(\"" << getCTypeNameForLLVMType(type) << "\")" <<
-                                                            ".action([](const std::string& value) {return value.at(0);});" << std::endl;
-
 
     return s.str();
 }
@@ -398,7 +467,7 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
 
 
     // if type is scalar => output directly
-    if(type->isIntegerTy(32) || type->isIntegerTy(8)){
+    if(type->isIntegerTy(1) || type->isIntegerTy(8) || type->isIntegerTy(16) || type->isIntegerTy(32) || type->isIntegerTy(64)){
         output << "\t";
         std::string parserArg = joinStrings(prefixes, GENERATE_FORMAT_CLI);
 
@@ -631,6 +700,9 @@ int main(int argc, char** argv){
         setupfilestream << "argparse::ArgumentParser parser;" << std::endl << std::endl;
         setupfilestream << "// globals from module" << std::endl << getDefineGlobalsText()  << std::endl << std::endl;
 
+
+        setupfilestream << parseCharHelperFunctionText << std::endl << std::endl;
+        setupfilestream << parseShortHelperFunctionText << std::endl << std::endl;
         //extend parser stuff to include globals
 
         setupfilestream << "void setupParser() { " << std::endl
