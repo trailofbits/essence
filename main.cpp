@@ -60,7 +60,7 @@ std::string getCTypeNameForLLVMType(Type* type){
     if(type->isPointerTy())
         return getCTypeNameForLLVMType(type->getPointerElementType()) + "*";
 
-//    we don't get a parser for bool
+//    bools get converted to i8 in llvm
 //    if(type->isIntegerTy(1))
 //        return "bool";
 
@@ -132,33 +132,6 @@ short parseShortInput(const std::string& value){
     throw std::invalid_argument("value does not fit in char");
 }
 )""";
-//
-//namespace handsanitizer{
-//    class argument{
-//    public:
-//        std::string unique_name;
-//        argument(std::string name){
-//            this->unique_name = unique_name;
-//        }
-//
-//        // this only works for types
-//        virtual std::string getCTypeName() = 0;
-//        // also types + names
-//        virtual std::string getParserSetupText() = 0;
-//        // types + variable names
-//        virtual std::string getParserValueText() = 0;
-//    };
-//
-//    class CharType : argument{
-//         std::string getCTypeName() override{
-//             return "char";
-//         };
-//         std::
-//
-//    };
-//}
-//
-
 
 
 // llvm arguments are context bound so we can't use them as freely
@@ -554,35 +527,6 @@ std::string getParserRetrievalText(std::vector<handarg> args, bool isForGlobals 
         }
     }
     return s.str();
-        // first declare all sub structures
-        // wrap pointer values
-        // deal with passbyref/passbyval
-//        if(a.getType()->isPointerTy() && a.getType()->getPointerElementType()->isStructTy()){
-            //ignore their pointers for now
-
-//            auto structTypePtr = (StructType*)a.getType()->getPointerElementType(); // if its a pointer type this fails
-//            std::stringstream subelementstream;
-//            // I need to know the names beforehand?
-//            auto ds = getStructByLLVMType(structTypePtr);
-
-
-
-            //this will take
-
-            /*
-             * this will take struct X{ int a, char b}
-             * int Xa = parser.get<int>("--X.a")
-             * char Xb = parser.get<char>("--X.b")
-             * Struct X = { .a = Xa; .b=Xb}
-             *
-             * how do we get the name s for a and b?
-             * we might actually need to end up naming the entire tree
-             * as for an func arg(X x), it just needs a valid X, but does not care about naming
-             * even if we inline, the parser.get(name) requires us to specifiy exactly what is in a through the tree
-             * although root + type tree would be enough?  -- yes, but ugly as this would  make the conversion for
-             * between names an implicit rule which must be valid and is just very fragile in the beginning
-             * probably better to explicitly name everything
-             */
 }
 
 
@@ -696,9 +640,9 @@ int main(int argc, char** argv){
     std::string Error;
     auto Target = TargetRegistry::lookupTarget(TargetTriple, Error);
 
-// Print an error and exit if we couldn't find the requested target.
-// This generally occurs if we've forgotten to initialise the
-// TargetRegistry or we have a bogus target triple.
+    // Print an error and exit if we couldn't find the requested target.
+    // This generally occurs if we've forgotten to initialise the
+    // TargetRegistry or we have a bogus target triple.
     if (!Target) {
         errs() << Error;
         return 1;
