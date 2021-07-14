@@ -48,6 +48,8 @@
 #include "llvm/Target/TargetOptions.h"
 
 #include "llvm/Transforms/Utils.h"
+#include <filesystem>
+
 
 using namespace llvm;
 static ExitOnError ExitOnErr;
@@ -55,6 +57,9 @@ static ExitOnError ExitOnErr;
 static cl::opt<std::string>
         InputFilename(cl::Positional, cl::desc("<input bitcode>"), cl::init("-"));
 
+
+// note that the functions using this name should handle path construction so don't suffix this with /
+const std::string OUTPUT_DIR = "output";
 
 std::string getCTypeNameForLLVMType(Type* type){
     if(type->isPointerTy())
@@ -629,8 +634,6 @@ std::string getJsonInputTemplateText(std::vector<handarg> args, std::vector<hand
     return s.str();
 }
 
-
-
 int main(int argc, char** argv){
     // init llvm and open module
     InitLLVM X(argc, argv);
@@ -671,7 +674,10 @@ int main(int argc, char** argv){
 void GenerateCppFunctionHarness(std::string &funcName, Type *funcRetType, std::vector<handarg> &args_of_func,
                                 std::vector<handarg> &globals_of_func) {
     std::ofstream ofs;
-    auto output_file = funcName + ".cpp";
+    auto output_file = OUTPUT_DIR + "/" + funcName + ".cpp";
+    if(!std::filesystem::exists(OUTPUT_DIR))
+        std::filesystem::create_directory(OUTPUT_DIR);
+
     ofs.open(output_file, std::ofstream::out | std::ofstream::trunc);
     std::string setupFileString = getSetupFileText(funcName, funcRetType, args_of_func, globals_of_func);
     ofs << setupFileString;
@@ -695,7 +701,10 @@ std::vector<handarg> extractGlobalValuesFromModule(std::unique_ptr<Module> &mod)
 void GenerateJsonInputTemplateFile(const std::string &funcName, std::vector<handarg> &args_of_func,
                                    std::vector<handarg> &globals) {
     std::ofstream ofsj;
-    auto output_file_json = funcName + ".json";
+    auto output_file_json = OUTPUT_DIR + "/" + funcName + ".json";
+    if(!std::filesystem::exists(OUTPUT_DIR))
+        std::filesystem::create_directory(OUTPUT_DIR);
+
     ofsj.open(output_file_json, std::ofstream::out | std::ofstream::trunc);
     ofsj << getJsonInputTemplateText(args_of_func, globals);
     ofsj.close();
