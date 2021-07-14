@@ -196,6 +196,8 @@ public:
     };
 };
 
+std::string getSetupFileText(std::string functionName, std::vector<handarg> &args_of_func, Type *funcRetType);
+
 enum StringFormat{
     GENERATE_FORMAT_CLI,
     GENERATE_FORMAT_CPP_VARIABLE,
@@ -718,61 +720,10 @@ int main(int argc, char** argv){
 
         //print main
 
-        std::stringstream setupfilestream;
-        setupfilestream << "#include \"skelmain.hpp\" " << std::endl;
-        setupfilestream << "#include <nlohmann/json.hpp> // header only lib" << std::endl << std::endl;
-        setupfilestream << getStructDefinitions(args_of_func) << std::endl;
-
-        setupfilestream << "// still need to fix return types" << std::endl;
-
-        std::string rettype = getCTypeNameForLLVMType(funcRetType);
-        if(funcRetType->isStructTy())
-            rettype = getStructByLLVMType((StructType*)funcRetType).definedCStructName;
-            std::string functionSignature = rettype + " " +  f.getName().str() + "(" + getTypedArgumentNames(args_of_func) + ");";
-        setupfilestream << "extern \"C\" " + functionSignature << std::endl;
-        setupfilestream << "argparse::ArgumentParser parser;" << std::endl << std::endl;
-        setupfilestream << "// globals from module" << std::endl << getDefineGlobalsText()  << std::endl << std::endl;
-        setupfilestream << getJSONStructDeclartions() << std::endl;
-
-        setupfilestream << parseCharHelperFunctionText << std::endl << std::endl;
-        setupfilestream << parseShortHelperFunctionText << std::endl << std::endl;
-        //extend parser stuff to include globals
-
-        setupfilestream << "void setupParser(bool inputIsJson) { " << std::endl
-                << "std::stringstream s;"
-                << "s << \"Test program for: " << functionSignature << "\" << std::endl << R\"\"\"("  << getStructDefinitions(args_of_func) << ")\"\"\";" << std::endl
-                << "\tparser = argparse::ArgumentParser(s.str());" << std::endl
-                << "\t" << "if(inputIsJson)" << std::endl << "\t\t" << "parser.add_argument(\"-i\", \"--input\").required();" << std::endl
-                << "\t" << "else { " << std::endl
-                << getParserSetupTextFromHandargs(globals, true)
-                << getParserSetupTextFromHandargs(args_of_func)
-                << "\t}" << std::endl
-                << "} " << std::endl << std::endl;
-        setupfilestream << "void callFunction(bool inputIsJson) { " << std::endl
-        << "\t" << "if(inputIsJson){" << std::endl
-        << "\t\t" << "std::string inputfile = parser.get<std::string>(\"-i\");" << std::endl
-        << "\t\t" << "std::ifstream i(inputfile);\n"
-        "\t\tnlohmann::json j;\n"
-        "\t\ti >> j;\n"
-        << getParserRetrievalText(globals, true, true)
-        << getParserRetrievalText(args_of_func, false, true)
-        << "\t\t" << "nlohmann::json output_json = " << f.getName().str() << "(" << getUntypedArgumentNames(args_of_func) << ");" << std::endl
-        << "\t\t" << "std::cout << output_json << std::endl;" << std::endl
-        << "\t}" << std::endl
-        << "\telse {" << std::endl
-        << getParserRetrievalText(globals, true)
-        << getParserRetrievalText(args_of_func)
-        << "\t\t" << "nlohmann::json output_json = " << f.getName().str() << "(" << getUntypedArgumentNames(args_of_func) << ");" << std::endl
-        << "\t\t" << "std::cout << output_json << std::endl;" << std::endl
-
-        << "\t" << "}"
-        << std::endl;
-
-        setupfilestream << "} " << std::endl;
+        std::string setupFileString = getSetupFileText(f.getName().str(), args_of_func, funcRetType);
 
 
-
-        ofs << setupfilestream.str();
+        ofs << setupFileString;
         ofs.close();
 
         std::ofstream ofsj;
@@ -810,4 +761,85 @@ int main(int argc, char** argv){
 
 
     return count;
+}
+
+
+/*
+ * The format of the generated file is:
+ * header includes
+ * struct declarations
+ * test_function declaration
+ * json struct mappings
+ * helper functions used in generated text
+ * global variable setup (including the parser)
+ * setupParser Function
+ * callFunction Function
+ */
+std::string getSetupFileText(std::string functionName, std::vector<handarg> &args_of_func, Type *funcRetType) {
+    std::stringstream setupfilestream;
+
+    // INCLUDES HEADERS
+    setupfilestream << "#include \"skelmain.hpp\" " << std::endl;
+    setupfilestream << "#include <nlohmann/json.hpp> // header only lib" << std::endl << std::endl;
+
+
+    // DECLARE STRUCTS
+    setupfilestream << getStructDefinitions(args_of_func) << std::endl;
+
+    // DECLARATION TEST FUNCTION
+    // the LLVM type name differs from how we define it in our generated source code
+    std::string rettype = getCTypeNameForLLVMType(funcRetType);
+    if(funcRetType->isStructTy())
+        rettype = getStructByLLVMType((StructType*)funcRetType).definedCStructName;
+    std::string functionSignature = rettype + " " +  functionName + "(" + getTypedArgumentNames(args_of_func) + ");";
+    setupfilestream << "extern \"C\" " + functionSignature << std::endl;
+
+    // DECLARE GLOBALS
+    setupfilestream << "argparse::ArgumentParser parser;" << std::endl << std::endl;
+    setupfilestream << "// globals from module" << std::endl << getDefineGlobalsText()  << std::endl << std::endl;
+
+    // DECLARE JSON MAPPINGS
+    setupfilestream << getJSONStructDeclartions() << std::endl;
+
+    // DEFINE HELPER FUNCTIONS
+    setupfilestream << parseCharHelperFunctionText << std::endl << std::endl;
+    setupfilestream << parseShortHelperFunctionText << std::endl << std::endl;
+
+    // DEFINE SETUPPARSER
+    setupfilestream << "void setupParser(bool inputIsJson) { " << std::endl
+            << "std::stringstream s;"
+            << "s << \"Test program for: " << functionSignature << "\" << std::endl << R\"\"\"("  << getStructDefinitions(args_of_func) << ")\"\"\";" << std::endl
+            << "\tparser = argparse::ArgumentParser(s.str());" << std::endl
+            << "\t" << "if(inputIsJson)" << std::endl << "\t\t" << "parser.add_argument(\"-i\", \"--input\").required();" << std::endl
+            << "\t" << "else { " << std::endl
+            << getParserSetupTextFromHandargs(globals, true)
+            << getParserSetupTextFromHandargs(args_of_func)
+            << "\t}" << std::endl
+            << "} " << std::endl << std::endl;
+
+    // DEFINE CALLFUNCTION
+    setupfilestream << "void callFunction(bool inputIsJson) { " << std::endl
+    << "\t" << "if(inputIsJson){" << std::endl
+    << "\t\t" << "std::string inputfile = parser.get<std::string>(\"-i\");" << std::endl
+    << "\t\t" << "std::ifstream i(inputfile);\n"
+    "\t\tnlohmann::json j;\n"
+    "\t\ti >> j;\n"
+    << getParserRetrievalText(globals, true, true)
+    << getParserRetrievalText(args_of_func, false, true)
+    << "\t\t" << "nlohmann::json output_json = " << f.getName().str() << "(" << getUntypedArgumentNames(args_of_func) << ");" << std::endl
+    << "\t\t" << "std::cout << output_json << std::endl;" << std::endl
+    << "\t}" << std::endl
+    << "\telse {" << std::endl
+    << getParserRetrievalText(globals, true)
+    << getParserRetrievalText(args_of_func)
+    << "\t\t" << "nlohmann::json output_json = " << functionName << "(" << getUntypedArgumentNames(args_of_func) << ");" << std::endl
+    << "\t\t" << "std::cout << output_json << std::endl;" << std::endl
+
+    << "\t" << "}"
+    << std::endl;
+
+
+    setupfilestream << "} " << std::endl;
+    std::string setupFileString = setupfilestream.str();
+    return setupFileString;
 }
