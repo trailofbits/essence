@@ -616,12 +616,8 @@ std::string getJsonInputTemplateText(std::vector<handarg> args, std::vector<hand
 int main(int argc, char** argv){
     InitLLVM X(argc, argv);
     ExitOnErr.setBanner(std::string(argv[0]) + ": error: ");
-
     LLVMContext Context;
-
     cl::ParseCommandLineOptions(argc, argv, "llvm .bc -> .ll disassembler\n");
-
-
     std::unique_ptr<MemoryBuffer> MB =
             ExitOnErr(errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputFilename)));
 
@@ -631,36 +627,6 @@ int main(int argc, char** argv){
 
     std::unique_ptr<Module> mod = ExitOnErr(IF.Mods[0].parseModule(Context));
     int count = 0;
-
-    auto TargetTriple = sys::getDefaultTargetTriple();
-    InitializeAllTargetInfos();
-    InitializeAllTargets();
-    InitializeAllTargetMCs();
-    InitializeAllAsmParsers();
-    InitializeAllAsmPrinters();
-
-    std::string Error;
-    auto Target = TargetRegistry::lookupTarget(TargetTriple, Error);
-
-    // Print an error and exit if we couldn't find the requested target.
-    // This generally occurs if we've forgotten to initialise the
-    // TargetRegistry or we have a bogus target triple.
-    if (!Target) {
-        errs() << Error;
-        return 1;
-    }
-
-
-    auto CPU = "generic";
-    auto Features = "";
-
-    TargetOptions opt;
-    auto RM = Optional<Reloc::Model>(Reloc::DynamicNoPIC);
-
-    //normal linux triple
-
-
-
 
     for(auto& f : mod->functions()) {
         if(f.getName().str().rfind("_Z",0) != std::string::npos){
@@ -735,31 +701,6 @@ int main(int argc, char** argv){
 
     }
 
-
-    auto TargetMachine = Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
-    mod->setDataLayout(TargetMachine->createDataLayout());
-    mod->setTargetTriple(TargetTriple);
-
-    //define output
-    auto Filename = "output.o";
-    std::error_code EC;
-    raw_fd_ostream dest(Filename, EC, sys::fs::OF_None);
-
-    if (EC) {
-        errs() << "Could not open file: " << EC.message();
-        return 1;
-    }
-
-    legacy::PassManager pass;
-    if (TargetMachine->addPassesToEmitFile(pass, dest, nullptr, CGFT_ObjectFile)) {
-        errs() << "TargetMachine can't emit a file of this type";
-        return 1;
-    }
-
-    pass.run(*mod);
-    dest.flush();
-
-
     return count;
 }
 
@@ -826,7 +767,7 @@ std::string getSetupFileText(std::string functionName, std::vector<handarg> &arg
     "\t\ti >> j;\n"
     << getParserRetrievalText(globals, true, true)
     << getParserRetrievalText(args_of_func, false, true)
-    << "\t\t" << "nlohmann::json output_json = " << f.getName().str() << "(" << getUntypedArgumentNames(args_of_func) << ");" << std::endl
+    << "\t\t" << "nlohmann::json output_json = " << functionName << "(" << getUntypedArgumentNames(args_of_func) << ");" << std::endl
     << "\t\t" << "std::cout << output_json << std::endl;" << std::endl
     << "\t}" << std::endl
     << "\telse {" << std::endl
