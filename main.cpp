@@ -196,7 +196,18 @@ public:
     };
 };
 
-std::string getSetupFileText(std::string functionName, std::vector<handarg> &args_of_func, Type *funcRetType);
+std::string getSetupFileText(std::string functionName, Type *funcRetType, std::vector<handarg> &args_of_func,
+                             std::vector<handarg> &globals);
+
+std::vector<handarg> extractArgumentsFromFunction(Function &f);
+
+void GenerateJsonInputTemplateFile(const std::string &funcName, std::vector<handarg> &args_of_func,
+                                   std::vector<handarg> &globals);
+
+std::vector<handarg> extractGlobalValuesFromModule(std::unique_ptr<Module> &mod);
+
+void GenerateCppFunctionHarness(std::string &funcName, Type *funcRetType, std::vector<handarg> &args_of_func,
+                                std::vector<handarg> &globals_of_func);
 
 enum StringFormat{
     GENERATE_FORMAT_CLI,
@@ -329,8 +340,8 @@ std::string getStructDefinitions(std::vector<handarg> args){
     return definitionStrings.str();
 }
 
-std::vector<handarg> globals;
-std::string getDefineGlobalsText(){
+
+std::string getDefineGlobalsText(std::vector<handarg> globals){
     std::stringstream s;
     for(auto& global : globals){
         s << "extern " << getCTypeNameForLLVMType(global.getType()) << " " << global.getName() << ";" << std::endl;
@@ -588,6 +599,13 @@ std::string getJsonObjectForStruct(DefinedStruct ds, int depth = 2){
     return s.str();
 }
 
+std::string printRawLLVMType(Type* type){
+    std::string type_str;
+    llvm::raw_string_ostream rso(type_str);
+    type->print(rso);
+    return rso.str();
+}
+
 std::string getJsonInputTemplateText(std::vector<handarg> args, std::vector<handarg> globals){
     std::stringstream s;
     s << "{" << std::endl;
@@ -614,94 +632,91 @@ std::string getJsonInputTemplateText(std::vector<handarg> args, std::vector<hand
 
 
 int main(int argc, char** argv){
+    // init llvm and open module
     InitLLVM X(argc, argv);
     ExitOnErr.setBanner(std::string(argv[0]) + ": error: ");
     LLVMContext Context;
     cl::ParseCommandLineOptions(argc, argv, "llvm .bc -> .ll disassembler\n");
-    std::unique_ptr<MemoryBuffer> MB =
-            ExitOnErr(errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputFilename)));
-
+    std::unique_ptr<MemoryBuffer> MB = ExitOnErr(errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputFilename)));
     BitcodeFileContents IF = ExitOnErr(llvm::getBitcodeFileContents(*MB));
-
     std::cout << "Bitcode file contains this many modules " << IF.Mods.size() << std::endl;
-
     std::unique_ptr<Module> mod = ExitOnErr(IF.Mods[0].parseModule(Context));
-    int count = 0;
 
+    int generatedFunctionCounter = 0;
     for(auto& f : mod->functions()) {
-        if(f.getName().str().rfind("_Z",0) != std::string::npos){
-            std::cout << "function mangled " << f.getName().str() << std::endl;
+        std::string funcName = f.getName().str();
+        if(funcName.rfind("_Z",0) != std::string::npos){
+            std::cout << "function mangled " << funcName << std::endl;
             continue; // mangeld c++ function
         }
+        std::cout << "Found function: " << funcName << " pure: " << f.doesNotReadMemory() <<  " accepting guments: " << std::endl;
 
-        std::vector<handarg> args_of_func;
-        std::ofstream ofs;
-        auto output_file = std::string(f.getName());
-        output_file = output_file + ".cpp";
-        ofs.open(output_file, std::ofstream::out | std::ofstream::trunc);
 
+        std::vector<handarg> globals_of_func = extractGlobalValuesFromModule(mod);
+        std::vector<handarg> args_of_func = extractArgumentsFromFunction(f);
+
+        // the return type might be a struct be an anonymous struct that is not defined in the bitcode module
         Type* funcRetType = f.getReturnType();
         if(funcRetType->isStructTy())
             defineIfNeeded(funcRetType, true);
 
-        std::cout << "Found function: " << f.getName().str() << " pure: " << f.doesNotReadMemory() <<  " accepting arguments: " << std::endl;
-        for(auto& global : mod->global_values())
-        {
-            if(!global.getType()->isFunctionTy()  && !(global.getType()->isPointerTy() && global.getType()->getPointerElementType()->isFunctionTy())  && global.isDSOLocal()){ // should probably do more checks
-                globals.push_back(handarg(global.getName(), 0 , global.getType()->getPointerElementType(), false));
-            }
-        }
-
-
-        int argcounter = 0;
-        for(auto& arg : f.args()){
-
-            std::string type_str;
-            llvm::raw_string_ostream rso(type_str);
-            arg.getType()->print(rso);
-            std::string argname = "";
-            if(arg.hasName())
-                argname = arg.getName();
-            else
-                argname = "e_" + std::to_string(argcounter);
-
-            // TODO: Make sure that these names don't conflict with globals
-            std::cout << "Name: " << argname << " type: " << rso.str() << std::endl;
-            args_of_func.push_back(handarg(argname, arg.getArgNo(), arg.getType(), arg.hasByValAttr()));
-            argcounter++;
-        }
-
-        count++;
-
-
-        if (f.getName().str() == "test"){
-            std::cout << "can do smth with test";
-
-            auto Callee = f.getParent()->getOrInsertFunction("callfunc", Type::getVoidTy(mod->getContext()));
-            auto Fun = dyn_cast<Constant>(Callee.getCallee());
-            IRBuilder<> builder(&*f.getEntryBlock().getFirstInsertionPt());
-            builder.CreateCall(Fun, None);
-        }
-
-
-        //print main
-
-        std::string setupFileString = getSetupFileText(f.getName().str(), args_of_func, funcRetType);
-
-
-        ofs << setupFileString;
-        ofs.close();
-
-        std::ofstream ofsj;
-        auto output_file_json = std::string(f.getName());
-        output_file_json = output_file_json + ".json";
-        ofsj.open(output_file_json, std::ofstream::out | std::ofstream::trunc);
-        ofsj << getJsonInputTemplateText(args_of_func, globals);
-        ofsj.close();
-
+        GenerateCppFunctionHarness(funcName, funcRetType, args_of_func, globals_of_func);
+        GenerateJsonInputTemplateFile(funcName, args_of_func, globals_of_func);
+        generatedFunctionCounter++;
     }
 
-    return count;
+    return generatedFunctionCounter;
+}
+
+void GenerateCppFunctionHarness(std::string &funcName, Type *funcRetType, std::vector<handarg> &args_of_func,
+                                std::vector<handarg> &globals_of_func) {
+    std::ofstream ofs;
+    auto output_file = funcName + ".cpp";
+    ofs.open(output_file, std::ofstream::out | std::ofstream::trunc);
+    std::string setupFileString = getSetupFileText(funcName, funcRetType, args_of_func, globals_of_func);
+    ofs << setupFileString;
+    ofs.close();
+}
+
+std::vector<handarg> extractGlobalValuesFromModule(std::unique_ptr<Module> &mod) {
+    std::vector<handarg> globals;
+    for(auto& global : mod->global_values())
+    {
+        // TODO: Should figure out what checks actually should be in here
+        // Check if global is global value or something else,
+        // I remove function declarations here, but what if a global value is a function pointer?
+        if(!global.getType()->isFunctionTy()  && !(global.getType()->isPointerTy() && global.getType()->getPointerElementType()->isFunctionTy())  && global.isDSOLocal()){
+            globals.push_back(handarg(global.getName(), 0 , global.getType()->getPointerElementType(), false));
+        }
+    }
+    return globals;
+}
+
+void GenerateJsonInputTemplateFile(const std::string &funcName, std::vector<handarg> &args_of_func,
+                                   std::vector<handarg> &globals) {
+    std::ofstream ofsj;
+    auto output_file_json = funcName + ".json";
+    ofsj.open(output_file_json, std::ofstream::out | std::ofstream::trunc);
+    ofsj << getJsonInputTemplateText(args_of_func, globals);
+    ofsj.close();
+}
+
+std::vector<handarg> extractArgumentsFromFunction(Function &f) {
+    std::vector<handarg> args;
+    int argcounter = 0;
+    for(auto& arg : f.args()){
+        std::string argName = "";
+        if(arg.hasName())
+            argName = arg.getName();
+        else
+            argName = "e_" + std::to_string(argcounter);
+
+        // TODO: Make sure that these names don't conflict with globals
+        std::cout << "Name: " << argName << " type: " << printRawLLVMType(arg.getType()) << std::endl;
+        args.push_back(handarg(argName, arg.getArgNo(), arg.getType(), arg.hasByValAttr()));
+        argcounter++;
+    }
+    return args;
 }
 
 
@@ -716,7 +731,8 @@ int main(int argc, char** argv){
  * setupParser Function
  * callFunction Function
  */
-std::string getSetupFileText(std::string functionName, std::vector<handarg> &args_of_func, Type *funcRetType) {
+std::string getSetupFileText(std::string functionName, Type *funcRetType, std::vector<handarg> &args_of_func,
+                             std::vector<handarg> &globals) {
     std::stringstream setupfilestream;
 
     // INCLUDES HEADERS
@@ -737,7 +753,7 @@ std::string getSetupFileText(std::string functionName, std::vector<handarg> &arg
 
     // DECLARE GLOBALS
     setupfilestream << "argparse::ArgumentParser parser;" << std::endl << std::endl;
-    setupfilestream << "// globals from module" << std::endl << getDefineGlobalsText()  << std::endl << std::endl;
+    setupfilestream << "// globals from module" << std::endl << getDefineGlobalsText(globals)  << std::endl << std::endl;
 
     // DECLARE JSON MAPPINGS
     setupfilestream << getJSONStructDeclartions() << std::endl;
