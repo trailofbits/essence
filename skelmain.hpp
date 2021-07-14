@@ -6,9 +6,9 @@
 #define HANDSANITIZER_SUM_H
 
 #include <argparse/argparse.hpp>
-
+#include <fstream>
 extern argparse::ArgumentParser parser;
 
-void setupParser();
-void callFunction();
+void setupParser(bool isJsonInput);
+void callFunction(bool isJsonInput);
 #endif //HANDSANITIZER_SUM_H

@@ -9,8 +9,15 @@
 
 
 int main(int argc, char *argv[]) {
-    setupParser();
+    bool isJsonInput = false;
+    if(argc > 1){
+        auto firstArg = std::string(argv[1]);
+        //check it manually like this because argparse doesn't support toggleable required inputs
+        if(firstArg.compare("-i") == 0 || firstArg.compare("--input"))
+            isJsonInput = true;
+    }
 
+    setupParser(isJsonInput);
     try {
         parser.parse_args(argc, argv);
     }
@@ -19,8 +26,7 @@ int main(int argc, char *argv[]) {
         std::cout << parser;
         exit(0);
     }
-
-    callFunction();
+    callFunction(isJsonInput);
     return 0;
 }
 #endif

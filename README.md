@@ -131,3 +131,25 @@ T** val1 = &val2;
 T*** val = &val1; //
 ```
 
+
+
+# JSON vs CLI   
+Our program supports two input types, cli arguments and json
+
+however there are two issues at play
+
+json doesn't have a native char type, parsing it might be tough?
+cli doesn't support variable sized arrays
+    - this would be important for strings as we can't emulate strings in a different fashion.
+
+
+We can overload i8* with strings 
+we also already have an '' detector
+currently we do chars on stack, but we can also do them always on a null terminated heap 
+
+
+
+
+
+chars => first value of stirngs 
+is not the same as array though
