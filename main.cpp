@@ -508,7 +508,7 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
         int arrSize = type->getArrayNumElements();
         Type* arrType = type->getArrayElementType();
         std::string iterator_name = getUniqueLoopIteratorName(); // we require a name from this function to get proper generation
-        output << "for(int " << iterator_name << " =0; " << iterator_name << " < "<< arrSize << ";" << iterator_name << "++) {" << std::endl;
+        output << "for(int " << iterator_name << " = 0; " << iterator_name << " < "<< arrSize << ";" << iterator_name << "++) {" << std::endl;
         std::vector<std::string> fullname(prefixes);
         fullname.push_back(iterator_name);
         output << getParserRetrievalForNamedType(fullname, arrType, false, jsonInput); // we declare a new local variable so don't pass in the global flag
@@ -517,17 +517,74 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
     }
 
 
-    // if is pointer, allocate the value and address it directly from the stack
-    // expand this such that it allows for arrays
-    if(type->isPointerTy()){
-        std::vector<std::string> referenced_name(prefixes);
-        referenced_name.push_back(POINTER_DENOTATION);
-        output << getParserRetrievalForNamedType(referenced_name, type->getPointerElementType(), isForGlobals, jsonInput);
+    // Pointers recurse until they point to a non pointer
+    // for a non-pointer it declares the base type and sets it as an array/scalar
+    if(type->isPointerTy()) {
+        if (type->getPointerElementType()->isPointerTy()) {
+            std::vector<std::string> referenced_name(prefixes);
+            referenced_name.push_back(POINTER_DENOTATION);
+            output << getParserRetrievalForNamedType(referenced_name, type->getPointerElementType(), isForGlobals,
+                                                     jsonInput);
 
-        output << "\t\t";
-        if(!isForGlobals)
-            output << getCTypeNameForLLVMType(type) << " ";
-        output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = &" << joinStrings(referenced_name, GENERATE_FORMAT_CPP_VARIABLE) << ";" << std::endl;
+            output << "\t\t";
+            if (!isForGlobals)
+                output << getCTypeNameForLLVMType(type) << " ";
+            output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = &"
+                   << joinStrings(referenced_name, GENERATE_FORMAT_CPP_VARIABLE) << ";" << std::endl;
+        }
+        else{ // we know ptr points to a non pointer
+            Type* pointeeType = type->getPointerElementType();
+            std::string elTypeName = getCTypeNameForLLVMType(pointeeType);
+            std::string arrSize =  "j" + joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING) + ".size()";
+            std::string jsonValue = "j" + joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING);
+            //declare var, as we recurse it must always be an extra definition
+            output << elTypeName << "* " << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << ";" << std::endl;
+
+
+            output << "if(" << jsonValue << ".is_array()) { " << std::endl;
+            std::vector<std::string> malloced_value(prefixes);
+            malloced_value.push_back("malloced");
+
+
+            output << elTypeName << "* " << joinStrings(malloced_value, GENERATE_FORMAT_CPP_VARIABLE);
+
+            // TODO: should add a corresponding free
+            output << " = (" << elTypeName << "*) malloc(sizeof(" << elTypeName << ") * " << arrSize << ");" << std::endl;
+
+            std::string iterator_name = getUniqueLoopIteratorName(); // we require a name from this function to get proper generation
+                output << "for(int " << iterator_name << " = 0; " << iterator_name << " < "<< arrSize << ";" << iterator_name << "++) {" << std::endl;
+                output << joinStrings(malloced_value, GENERATE_FORMAT_CPP_VARIABLE) << "[" << iterator_name << "] = j" << joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING) << "[" << iterator_name << "].get<" << elTypeName << ">();" << std::endl;
+                output << "}" << std::endl; //endfor
+
+            output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = " << joinStrings(malloced_value, GENERATE_FORMAT_CPP_VARIABLE) << ";" <<std::endl;
+            output << "}" << std::endl; //end if_array
+
+            output << "if(" << jsonValue << ".is_number()){" << std::endl;
+            //cast rvalue in case its a char
+            auto stack_alloced_name = joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) + "_stack_alloced";
+            output << elTypeName << " " <<  stack_alloced_name << "= (" << elTypeName << ")" << jsonValue << ".get<" << elTypeName << ">();" << std::endl;
+            output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = &" << stack_alloced_name << ";" << std::endl;
+            output << "}" << std::endl; //end if number
+
+        }
+
+
+        //
+        /* declare type t
+         * if j.isScalarscalar
+         *      t = j...
+         * if j.isArray
+         *      malloc size(t*j.size)
+         *      recurse and wrap in LLVMTypeArray
+         * if t <=> i*
+         *      if j.isstring
+         *          std::string svalue = j.getstring
+         *          t = svalue.getRef
+         */
+
+
+
+
     }
 
 
@@ -596,7 +653,7 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
                 int arrSize = member.second->getArrayNumElements();
                 Type* arrType = member.second->getArrayElementType();
                 std::string iterator_name = getUniqueLoopIteratorName(); // we require a name from this function to get proper generation
-                output << "for(int " << iterator_name << " =0; " << iterator_name << " < "<< arrSize << ";" << iterator_name << "++) {" << std::endl;
+                output << "for(int " << iterator_name << " = 0; " << iterator_name << " < "<< arrSize << ";" << iterator_name << "++) {" << std::endl;
                     std::vector<std::string> fullMemberName(prefixes);
                     fullMemberName.push_back(member.first);
                     fullMemberName.push_back(iterator_name);
@@ -875,7 +932,8 @@ std::string getSetupFileText(std::string functionName, Type *funcRetType, std::v
     setupfilestream << "// globals from module" << std::endl << getDefineGlobalsText(globals)  << std::endl << std::endl;
 
     // DECLARE JSON MAPPINGS
-    setupfilestream << getJSONStructDeclartions() << std::endl;
+    // We can't use this if we want to support int* :( no idea how we didn't catch this earlier
+    //    setupfilestream << getJSONStructDeclartions() << std::endl;
 
     // DEFINE HELPER FUNCTIONS
     setupfilestream << parseCharHelperFunctionText << std::endl << std::endl;
