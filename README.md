@@ -67,3 +67,13 @@ f(x1, y);
 
 
 
+### Arrays
+llvm arrays have their size predeteremined
+
+What if the input array is shorter than array in the binary? UB 
+The json template file generates a proper length for us 
+
+Pointers don't, 
+but here we create an array of our own desired length and need not to uphold anything length wise 
+
+

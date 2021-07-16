@@ -61,6 +61,18 @@ static cl::opt<std::string>
 // note that the functions using this name should handle path construction so don't suffix this with /
 const std::string OUTPUT_DIR = "output";
 
+
+int iterator_names_used = 0;
+std::vector<std::string> iterator_names;
+std::string getUniqueLoopIteratorName(){
+    std::string name = "i" + std::to_string(iterator_names_used);
+    iterator_names.push_back(name);
+    iterator_names_used++;
+    return name;
+}
+
+
+
 std::string getCTypeNameForLLVMType(Type* type){
     if(type->isPointerTy())
         return getCTypeNameForLLVMType(type->getPointerElementType()) + "*";
@@ -102,6 +114,9 @@ std::string getCTypeNameForLLVMType(Type* type){
             s = s.replace(0, 6, ""); //removes union. prefix
         return s;
     }
+
+    if(type->isArrayTy())
+        throw std::invalid_argument("Arrays can't have their names expressed like this");
 
     return "Not supported";
 }
@@ -220,9 +235,10 @@ enum StringFormat{
     GENERATE_FORMAT_JSON_ARRAY_ADDRESSING
 };
 
-static std::string CLI_NAME_DELIMITER = ".";
-static std::string LVALUE_DELIMITER = "_";
-static std::string POINTER_DENOTATION = "__p";
+const std::string CLI_NAME_DELIMITER = ".";
+const std::string LVALUE_DELIMITER = "_";
+const std::string POINTER_DENOTATION = "__p";
+const std::string ARRAY_INDEX_TOKEN = "i";
 // so big idea is to generate all source pieces from list<args>
 // with args = struct{ LLVMType, position, name}, and at each c++ location we need one to call ConvertLLVMTypeToC++,
 std::string joinStrings(std::vector<std::string> strings, StringFormat format){
@@ -238,7 +254,10 @@ std::string joinStrings(std::vector<std::string> strings, StringFormat format){
         if(format != GENERATE_FORMAT_CPP_VARIABLE && s == POINTER_DENOTATION)
             continue; // don't print the pointer markings in lvalue as these are abstracted away
         if(format == GENERATE_FORMAT_JSON_ARRAY_ADDRESSING){
-            output << "[\"" << s << "\"]";
+            if(std::find(iterator_names.begin(), iterator_names.end(), s) != iterator_names.end())
+                output << "[" << s << "]";
+            else
+                output << "[\"" << s << "\"]";
         }
         else{
             output << s << delimiter;
@@ -276,9 +295,9 @@ std::stringstream definitionStrings;
 
 // Adds itself in the correct order to definitionStream
 void defineIfNeeded(Type* arg, bool isRetType = false){
-    //extract if its pointer type
+    // if we have a T**** we might still need to define T, so recurse instead of check
     if(arg->isPointerTy())
-        arg = arg->getPointerElementType();
+        defineIfNeeded(arg->getPointerElementType(), isRetType);
 
     std::cout << "called for: " << getCTypeNameForLLVMType(arg);
     if(arg->isStructTy()){ // we don't care about arrays thus no (is aggregrate type)
@@ -297,12 +316,31 @@ void defineIfNeeded(Type* arg, bool isRetType = false){
             // all members need to be added, if any struct is referenced we need tto define it again
             for(int i =0 ; i < arg->getStructNumElements(); i++){
                 auto child = arg->getStructElementType(i);
-                // is struct or struct*
-                if (child->isStructTy() || (child->isPointerTy() && child->getPointerElementType()->isStructTy()))
+
+                /*
+                 * A struct can contain 3 constructs which we might need to define
+                 * 1. pointer should always be tried to be defined
+                 * 2. a struct obviously
+                 * 3. array types
+                 */
+                if (child->isStructTy() || child->isPointerTy())
                     defineIfNeeded(child);
+                if (child->isArrayTy()) {
+                    auto arrType = child->getArrayElementType();
+                    if (arrType->isStructTy() || arrType->isPointerTy())
+                        defineIfNeeded(arrType);
+                }
 
                 std::string childname = "e_" + std::to_string(i);
-                elementsString << "\t" << getCTypeNameForLLVMType(child) << " " << childname  << ";" << std::endl;
+                if(child->isArrayTy()){ // of course we can't have nice things in this world :(
+                    auto arrayType = child->getArrayElementType();
+                    auto arraySize = child->getArrayNumElements();
+                    elementsString << "\t" << getCTypeNameForLLVMType(arrayType) << " " << childname  << "[" << arraySize << "];" << std::endl;
+                }
+                else{
+                    elementsString << "\t" << getCTypeNameForLLVMType(child) << " " << childname  << ";" << std::endl;
+                }
+
                 newDefinedStruct.member_names.push_back(childname);
             }
 
@@ -463,8 +501,9 @@ std::string getParserSetupTextFromHandargs(std::vector<handarg> args, bool isFor
  */
 std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Type* type, bool isForGlobals = false, bool jsonInput = false){
     std::stringstream output;
-
-
+    // arrays only exists in types
+    if(type->isArrayTy())
+        return "";
     // if is pointer, allocate the value and address it directly from the stack
     // expand this such that it allows for arrays
     if(type->isPointerTy()){
@@ -505,27 +544,65 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
 
     }
 
-
     // if type is struct, recurse with member names added as prefix
     if(type->isStructTy()){
+        // first do non array members
+        // declare and assign values to struct
+        // then fill in struct arrays (as these can only be filled in post declaration)
+
+
         DefinedStruct ds = getStructByLLVMType((StructType*)type);
         for(auto member : ds.getNamedMembers()){
-            std::vector<std::string> fullMemberName(prefixes);
-            fullMemberName.push_back(member.first);
-            output << getParserRetrievalForNamedType(fullMemberName, member.second, isForGlobals, jsonInput);
+            if(member.second->isArrayTy() == false){
+                std::vector<std::string> fullMemberName(prefixes);
+                fullMemberName.push_back(member.first);
+                output << getParserRetrievalForNamedType(fullMemberName, member.second, isForGlobals, jsonInput);
+            }
         }
         output << "\t";
         if(!isForGlobals)
             output << ds.definedCStructName << " ";
         output  << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << "{ " << std::endl;
         for(auto member : ds.getNamedMembers()){
-            std::vector<std::string> fullMemberName(prefixes);
-            fullMemberName.push_back(member.first);
-            //TODO formalize the fullmember name (lvalue name for member)
-            output << "\t\t" << "." << member.first << " = " << joinStrings(fullMemberName, GENERATE_FORMAT_CPP_VARIABLE) << "," << std::endl;
+            if(member.second->isArrayTy() == false){
+                std::vector<std::string> fullMemberName(prefixes);
+                fullMemberName.push_back(member.first);
+                //TODO formalize the fullmember name (lvalue name for member)
+                output << "\t\t" << "." << member.first << " = " << joinStrings(fullMemberName, GENERATE_FORMAT_CPP_VARIABLE) << "," << std::endl;
+            }
         }
         output << "\t};" << std::endl;
 
+        for(auto member : ds.getNamedMembers()){
+            // arrays can be also of custom types with arbitrary but finite amounts of nesting, so we need to recurse
+            if(member.second->isArrayTy()){
+                int arrSize = member.second->getArrayNumElements();
+                Type* arrType = member.second->getArrayElementType();
+                std::string iterator_name = getUniqueLoopIteratorName(); // we require a name from this function to get proper generation
+                output << "for(int " << iterator_name << " =0; " << iterator_name << " < "<< arrSize << ";" << iterator_name << "++) {" << std::endl;
+                    std::vector<std::string> fullMemberName(prefixes);
+                    fullMemberName.push_back(member.first);
+                    fullMemberName.push_back(iterator_name);
+                    output << getParserRetrievalForNamedType(fullMemberName, arrType, isForGlobals, jsonInput);
+                    output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << "." << member.first << "[" <<  iterator_name << "] = " << joinStrings(fullMemberName, GENERATE_FORMAT_CPP_VARIABLE) << ";" << std::endl;
+                output << "}" << std::endl;
+
+//                std::vector<std::string> fullMemberName(prefixes);
+//                fullMemberName.push_back(member.first);
+//                output << getParserRetrievalForNamedType(fullMemberName, member.second, isForGlobals, jsonInput);
+                /*
+                 * output should be
+                 * struct X x { .a = a }... already exists assume struct X {int a, Y b[10]}
+                 * for(int i = 0; i < b.size; i++){
+                 *      Y y = ... (recursed value like normal)
+                 *      x.b[i] = y;
+                 * }
+                 */
+
+
+
+            }
+        }
     }
     return output.str();
 }
@@ -574,7 +651,8 @@ std::string getUntypedArgumentNames(std::vector<handarg> args){
 }
 
 std::string getJsonObjectForScalar(Type* type){
-    auto typeString = std::string(getCTypeNameForLLVMType(type));
+    //TODO fix this for arrays
+    auto typeString = std::string("PLACEHOLDER");
     for (auto & c: typeString) //didn't want to include boost::to_upper
         c = toupper(c);
     return "\"" + typeString + "_TOKEN" +  "\"" ;
@@ -589,6 +667,19 @@ std::string getJsonObjectForStruct(DefinedStruct ds, int depth = 2){
         s << "\"" << mem.first << "\": ";
         if (mem.second->isStructTy()){
             s << getJsonObjectForStruct(getStructByLLVMType((StructType*)mem.second), depth+1);
+        }
+        else if(mem.second->isArrayTy()){
+            s << "[";
+            auto arrType = mem.second->getArrayElementType();
+            for(int i = 0; i < mem.second->getArrayNumElements(); i++){
+                if(arrType->isStructTy()){
+                    s << getJsonObjectForStruct(getStructByLLVMType((StructType*)arrType)) << ",";
+                }
+                else{
+                    s << getJsonObjectForScalar(arrType) << ",";
+                }
+            }
+            s << "]";
         }
         else{
             s << getJsonObjectForScalar((StructType*)mem.second);
@@ -618,6 +709,9 @@ std::string getJsonInputTemplateText(std::vector<handarg> args, std::vector<hand
        s << "\t" << "\"" << arg.getName() << "\": ";
         if (arg.getType()->isPointerTy() && arg.getType()->getPointerElementType()->isStructTy()){
             s << getJsonObjectForStruct(getStructByLLVMType((StructType*)arg.getType()->getPointerElementType()));
+        }
+        else if(arg.getType()->isArrayTy()){
+            s << "ARRAY_HERE";
         }
         else{
             s << getJsonObjectForScalar(arg.getType());
@@ -778,8 +872,8 @@ std::string getSetupFileText(std::string functionName, Type *funcRetType, std::v
             << "\tparser = argparse::ArgumentParser(s.str());" << std::endl
             << "\t" << "if(inputIsJson)" << std::endl << "\t\t" << "parser.add_argument(\"-i\", \"--input\").required();" << std::endl
             << "\t" << "else { " << std::endl
-            << getParserSetupTextFromHandargs(globals, true)
-            << getParserSetupTextFromHandargs(args_of_func)
+//            << getParserSetupTextFromHandargs(globals, true)
+//            << getParserSetupTextFromHandargs(args_of_func)
             << "\t}" << std::endl
             << "} " << std::endl << std::endl;
 
