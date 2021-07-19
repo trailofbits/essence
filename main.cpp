@@ -85,16 +85,16 @@ std::string getCTypeNameForLLVMType(Type* type){
         return "char";
 
     if(type->isIntegerTy(16))
-        return "short";
+        return "int16_t";
 
     if(type->isIntegerTy(32))
-        return "int";
+        return "int32_t";
 
     if(type->isIntegerTy(64))
-        return "long";
+        return "int64_t";
 
-    if(type->isIntegerTy(64))
-        return "long long"; // this makes very strong assumptions on underling structures, should fix this
+//    if(type->isIntegerTy(64))
+//        return "long long"; // this makes very strong assumptions on underling structures, should fix this
 
     if(type->isVoidTy())
         return "void";
@@ -635,7 +635,9 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
 
 
                 output << "if(" << jsonValue << ".is_number()) {" << std::endl;
-                output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = (char*)&" << jsonValue << ".get<char>();" << std::endl; // TODO: no idea if it accepts .get<char>
+                auto tmp_char_val = getUniqueCppTmpString(prefixes);
+                output << "char " << tmp_char_val << " = " << jsonValue << ".get<char>();" << std::endl; // TODO: no idea if it accepts .get<char>
+                output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = &" << tmp_char_val << ";" << std::endl;
                 output << "}" << std::endl; //end is_number
 
 
@@ -643,8 +645,8 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
                 auto nestedIterator =  getUniqueLoopIteratorName();
                 auto nestedIteratorIndex ="[" + nestedIterator + "]";
                 auto indexedJsonValue = jsonValue + nestedIteratorIndex;
-                output << "int malloc_size_counter = 0" << std::endl;
-                output << "for(int " << nestedIterator << " = 0; " << nestedIterator << " < " << jsonValue << ".size()){ " << std::endl;
+                output << "int malloc_size_counter = 0;" << std::endl;
+                output << "for(int " << nestedIterator << " = 0; " << nestedIterator << " < " << jsonValue << ".size(); " << nestedIterator << "++){ " << std::endl;
                 output << "if(" << indexedJsonValue << ".is_number() || " << jsonValue << nestedIteratorIndex << ".is_null()) malloc_size_counter++;"; // assume its a char
                 output << "if(" << indexedJsonValue << ".is_string()){"; // assume its a byte
                 auto str_len_counter = getUniqueCppTmpString(prefixes);
@@ -662,17 +664,18 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
                 auto writeHeadName = getUniqueCppTmpString(prefixes); // writes to this offset in the buffer
                 auto indexed_output_buffer_name = output_buffer_name + "[" + writeHeadName + "]";
                 output << "char* " << output_buffer_name << " = (char*)malloc(sizeof(char) * malloc_size_counter);" << std::endl;
-                output << "int " << writeHeadName << "0;" << std::endl;
+                output << "int " << writeHeadName << " = 0;" << std::endl;
                 //here copy, loop again over all and write
 
-                output << "for(int " << nestedIterator << " = 0; " << nestedIterator << " < " << jsonValue << ".size()){ " << std::endl;
+                output << "for(int " << nestedIterator << " = 0; " << nestedIterator << " < " << jsonValue << ".size(); " << nestedIterator << "++){ " << std::endl;
                 output << "if(" << jsonValue << nestedIteratorIndex << ".is_string()){ ";
                     auto str_val = getUniqueCppTmpString(prefixes);
-                    output << str_val << " = " << indexedJsonValue << ".get<std::string>();";
+                    output << "std::string " << str_val << " = " << indexedJsonValue << ".get<std::string>();";
                     // copy the string into the correct position
                     // .copy guarantees to not add an extra null char at the end which is what we desire
                     auto charsWritten  = getUniqueCppTmpString(prefixes);
-                    output << "auto " << charsWritten << " = " << str_val << ".copy(" << indexed_output_buffer_name << ", " << str_val << ".size(), " << "0);" << std::endl;
+                    // TODO: Check if this indeed copys part way into the buffer
+                    output << "auto " << charsWritten << " = " << str_val << ".copy(&" << indexed_output_buffer_name << ", " << str_val << ".size(), " << "0);" << std::endl;
                     output << writeHeadName << " = " << writeHeadName << " + " << charsWritten << ";" << std::endl;
                 output << "}" << std::endl; // end is string
 
@@ -693,7 +696,7 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
 
                 output << "}" << std::endl; // end for
 
-                output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = " << output_buffer_name << std::endl; // TODO: no idea if it accepts .get<char>
+                output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = " << output_buffer_name << ";" << std::endl; // TODO: no idea if it accepts .get<char>
                 output << "}" << std::endl; // end is_array
             }
 
@@ -701,26 +704,6 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
 
             // char array stuff
         }
-
-
-        //
-        /* declare type t
-         * if j.isScalarscalar
-         *      t = j...
-         * if j.isArray
-         *      malloc size(t*j.size)
-         *      recurse and wrap in LLVMTypeArray
-         * if t <=> i*
-         *      if j.isstring
-         *          std::string svalue = j.getstring
-         *          t = svalue.getRef
-         *
-         *          array of strings vs array of numbers? :( --- can I solve this by just casting?
-         */
-
-
-
-
     }
 
 
