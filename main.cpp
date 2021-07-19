@@ -230,12 +230,12 @@ void GenerateCppFunctionHarness(std::string &funcName, Type *funcRetType, std::v
                                 std::vector<handarg> &globals_of_func);
 
 enum StringFormat{
-    GENERATE_FORMAT_CLI,
+    GENERATE_FORMAT_CPP_ADDRESSING,
     GENERATE_FORMAT_CPP_VARIABLE,
     GENERATE_FORMAT_JSON_ARRAY_ADDRESSING
 };
 
-const std::string CLI_NAME_DELIMITER = ".";
+const std::string CPP_ADDRESSING_DELIMITER = ".";
 const std::string LVALUE_DELIMITER = "_";
 const std::string POINTER_DENOTATION = "__p";
 const std::string ARRAY_INDEX_TOKEN = "i";
@@ -252,8 +252,8 @@ const std::string ARRAY_INDEX_TOKEN = "i";
 std::string joinStrings(std::vector<std::string> strings, StringFormat format){
     std::stringstream output;
     std::string delimiter = "";
-    if(format == GENERATE_FORMAT_CLI)
-        delimiter = CLI_NAME_DELIMITER;
+    if(format == GENERATE_FORMAT_CPP_ADDRESSING)
+        delimiter = CPP_ADDRESSING_DELIMITER;
     if(format == GENERATE_FORMAT_CPP_VARIABLE)
         delimiter = LVALUE_DELIMITER;
 
@@ -474,7 +474,7 @@ std::string getParserSetupTextFromLLVMTypes(std::vector<std::string> name_prefix
         if(arg->isPointerTy())
             s << getParserSetupTextFromLLVMTypes(name_prefix, arg->getPointerElementType(), isGlobal); // but we need to maintain the counter
         else
-            s << getParserSetupTextForScalarType(joinStrings(name_prefix, GENERATE_FORMAT_CLI), arg, isGlobal);
+            s << getParserSetupTextForScalarType(joinStrings(name_prefix, GENERATE_FORMAT_CPP_ADDRESSING), arg, isGlobal);
     }
 
 
@@ -630,7 +630,7 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
                 output << getStringFromJson(string_tmp_val, jsonValue, getUniqueCppTmpString(prefixes),
                                             getUniqueCppTmpString(prefixes));
 
-                output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = " << string_tmp_val << std::endl;
+                output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = " << string_tmp_val << ";" << std::endl;
                 output << "}" << std::endl; // end is_string
 
 
@@ -727,7 +727,7 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
     // if type is scalar => output directly
     if(type->isIntegerTy(1) || type->isIntegerTy(8) || type->isIntegerTy(16) || type->isIntegerTy(32) || type->isIntegerTy(64)){
         output << "\t\t";
-        std::string parserArg = joinStrings(prefixes, GENERATE_FORMAT_CLI);
+        std::string parserArg = joinStrings(prefixes, GENERATE_FORMAT_CPP_ADDRESSING);
 
         if(!isForGlobals) // only declare types if its not global, otherwise we introduce them as local variable
             output << getCTypeNameForLLVMType(type) << " ";
@@ -1026,6 +1026,38 @@ std::vector<handarg> extractArgumentsFromFunction(Function &f) {
     }
     return args;
 }
+std::string getJsonOutputForType(std::vector<std::string> prefixes, Type* type){
+    std::stringstream s;
+    if(type->isPointerTy()){
+        //TODO: Should this be casted to anything to ensure proper output format?
+        s << "output_json" << joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING)
+            << " = " << joinStrings(prefixes, GENERATE_FORMAT_CPP_ADDRESSING) << ";" << std::endl;
+    }
+    else if(type->isStructTy()){
+        auto definedStruct = getStructByLLVMType((StructType*)type);
+        for(auto& mem : definedStruct.getNamedMembers()){
+            std::vector<std::string> member_prefixes;
+            member_prefixes.push_back(mem.first);
+            s << getJsonOutputForType(member_prefixes, mem.second) << std::endl;
+        }
+    }
+    else{
+        s << "output_json" << joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING)
+          << " = " << joinStrings(prefixes, GENERATE_FORMAT_CPP_ADDRESSING) << ";" << std::endl;
+    }
+    return s.str();
+}
+
+
+// assume output_var_name contains the return value already set
+std::string getJsonOutputText(std::string output_var_name, Type* retType){
+    std::stringstream s;
+    s << "nlohmann::json output_json;" << std::endl;
+    std::vector<std::string> prefixes;
+    prefixes.push_back(output_var_name);
+    s << getJsonOutputForType(prefixes, retType);
+    return s.str();
+}
 
 
 /*
@@ -1095,9 +1127,13 @@ std::string getSetupFileText(std::string functionName, Type *funcRetType, std::v
     "\t\tnlohmann::json j;\n"
     "\t\ti >> j;\n"
     << getParserRetrievalText(globals, true, true)
-    << getParserRetrievalText(args_of_func, false, true)
-    << "\t\t" << "nlohmann::json output_json = " << functionName << "(" << getUntypedArgumentNames(args_of_func) << ");" << std::endl
-    << "\t\t" << "std::cout << output_json << std::endl;" << std::endl
+    << getParserRetrievalText(args_of_func, false, true);
+
+    auto output_var_name = "output";
+    setupfilestream << "auto " << output_var_name << " = " <<  functionName << "(" << getUntypedArgumentNames(args_of_func) << ");" << std::endl;
+    setupfilestream <<  getJsonOutputText(output_var_name, funcRetType);
+
+    setupfilestream << "\t\t" << "std::cout << output_json << std::endl;" << std::endl
     << "\t}" << std::endl
     //TODO: remove parser implmentation
 //    << "\telse {" << std::endl
