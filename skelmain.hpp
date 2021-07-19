@@ -9,6 +9,6 @@
 #include <fstream>
 extern argparse::ArgumentParser parser;
 
-void setupParser(bool isJsonInput);
-void callFunction(bool isJsonInput);
+void setupParser();
+void callFunction();
 #endif //HANDSANITIZER_SUM_H

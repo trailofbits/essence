@@ -122,38 +122,6 @@ std::string getCTypeNameForLLVMType(Type* type){
 }
 
 
-std::string parseCharHelperFunctionText = R"""(
-char parseCharInput(const std::string& value){
-    if (value.size() > 2 && value[0] == '\'' && value[2] == '\'') {
-        return value.at(1);
-    }
-
-    if(value.compare("true") == 0){
-        return (char)1;
-    }
-    if(value.compare("false") == 0){
-        return (char)0;
-    }
-
-    int i = std::stoi(value);
-    if (i <= 127 & i >= -128) // there is no std::stoc :/
-        return (char)i;
-
-    throw std::invalid_argument("value does not fit in char");
-}
-)""";
-
-std::string parseShortHelperFunctionText = R"""(
-short parseShortInput(const std::string& value){
-    int i = std::stoi(value);
-    if (i <= 32767 & i >= -32768) // there is no std::stoc :/
-        return (short)i;
-
-    throw std::invalid_argument("value does not fit in char");
-}
-)""";
-
-
 // llvm arguments are context bound so we can't use them as freely
 // therefore we keep all info in a custom structure
 // should it include a list for structs S.T each struct has members+name, and can I use that setup for scalar values as well?
@@ -541,7 +509,7 @@ std::string getUniqueCppTmpString(std::vector<std::string> prefixes){
  * notice that we cannot encode how many extra variables we have made to deal with pointers as we need to keep prefixes only reflect structure depth
  * otherwise the parser.get("--name") we would diverge with the setup
  */
-std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Type* type, bool isForGlobals = false, bool jsonInput = false){
+std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Type* type, bool isForGlobals = false){
     std::stringstream output;
     // arrays only exists in types unless they are global
     if(isForGlobals && type->isArrayTy()){
@@ -551,7 +519,7 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
         output << "for(int " << iterator_name << " = 0; " << iterator_name << " < "<< arrSize << ";" << iterator_name << "++) {" << std::endl;
         std::vector<std::string> fullname(prefixes);
         fullname.push_back(iterator_name);
-        output << getParserRetrievalForNamedType(fullname, arrType, false, jsonInput); // we declare a new local variable so don't pass in the global flag
+        output << getParserRetrievalForNamedType(fullname, arrType, false); // we declare a new local variable so don't pass in the global flag
         output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << "[" << iterator_name << "] = " << joinStrings(fullname, GENERATE_FORMAT_CPP_VARIABLE) << ";" << std::endl;
         output << "}" << std::endl;
     }
@@ -563,8 +531,7 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
         if (type->getPointerElementType()->isPointerTy()) {
             std::vector<std::string> referenced_name(prefixes);
             referenced_name.push_back(POINTER_DENOTATION);
-            output << getParserRetrievalForNamedType(referenced_name, type->getPointerElementType(), isForGlobals,
-                                                     jsonInput);
+            output << getParserRetrievalForNamedType(referenced_name, type->getPointerElementType(), isForGlobals);
 
             output << "\t\t";
             if (!isForGlobals)
@@ -717,20 +684,11 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
         else {
 
             parserArg = "global." + parserArg;
-            if(!jsonInput) //wrap in parser.is_used to prevent exceptions on unspecified defined globals, only relevant for the parser, we could get rid of this by using defaults?
-                output << "if(parser.is_used(\"--" << parserArg << "\")){ " << std::endl << "\t\t";
         }
         //declare lvalue
         output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE);
-        if(jsonInput)
-            output << " = j" << joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING) << ".get<" << getCTypeNameForLLVMType(type) << ">();";
-        else
-            output << " = parser.get<" << getCTypeNameForLLVMType(type) << ">(\"--" <<  parserArg << "\");";
+        output << " = j" << joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING) << ".get<" << getCTypeNameForLLVMType(type) << ">();";
         output << std::endl;
-        if(isForGlobals && !jsonInput)
-            output << "\t\t}" << std::endl;
-
-
     }
 
     // if type is struct, recurse with member names added as prefix
@@ -745,7 +703,7 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
             if(member.second->isArrayTy() == false){
                 std::vector<std::string> fullMemberName(prefixes);
                 fullMemberName.push_back(member.first);
-                output << getParserRetrievalForNamedType(fullMemberName, member.second, false, jsonInput);
+                output << getParserRetrievalForNamedType(fullMemberName, member.second, false);
             }
         }
         output << "\t";
@@ -776,7 +734,7 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
                     std::vector<std::string> fullMemberName(prefixes);
                     fullMemberName.push_back(member.first);
                     fullMemberName.push_back(iterator_name);
-                    output << getParserRetrievalForNamedType(fullMemberName, arrType, false, jsonInput);
+                    output << getParserRetrievalForNamedType(fullMemberName, arrType, false);
                     output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << "." << member.first << "[" <<  iterator_name << "] = " << joinStrings(fullMemberName, GENERATE_FORMAT_CPP_VARIABLE) << ";" << std::endl;
                 output << "}" << std::endl;
             }
@@ -785,7 +743,7 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
     return output.str();
 }
 
-std::string getParserRetrievalText(std::vector<handarg> args, bool isForGlobals = false, bool jsonInput = false){
+std::string getParserRetrievalText(std::vector<handarg> args, bool isForGlobals = false){
     std::stringstream s;
 
     for(auto& a : args){
@@ -794,9 +752,9 @@ std::string getParserRetrievalText(std::vector<handarg> args, bool isForGlobals 
 
         // llvm boxes structs always with a pointer?
         if(a.type->isPointerTy() && a.type->getPointerElementType()->isStructTy())
-            s << getParserRetrievalForNamedType(dummy, a.type->getPointerElementType(), isForGlobals, jsonInput);
+            s << getParserRetrievalForNamedType(dummy, a.type->getPointerElementType(), isForGlobals);
         else{
-            s << getParserRetrievalForNamedType(dummy, a.type, isForGlobals, jsonInput);
+            s << getParserRetrievalForNamedType(dummy, a.type, isForGlobals);
         }
     }
     return s.str();
@@ -1082,51 +1040,28 @@ std::string getSetupFileText(std::string functionName, Type *funcRetType, std::v
     setupfilestream << "argparse::ArgumentParser parser;" << std::endl << std::endl;
     setupfilestream << "// globals from module" << std::endl << getDefineGlobalsText(globals)  << std::endl << std::endl;
 
-    // DECLARE JSON MAPPINGS
-    // We can't use this if we want to support int* :( no idea how we didn't catch this earlier
-    //    setupfilestream << getJSONStructDeclartions() << std::endl;
-
-    // DEFINE HELPER FUNCTIONS
-    setupfilestream << parseCharHelperFunctionText << std::endl << std::endl;
-    setupfilestream << parseShortHelperFunctionText << std::endl << std::endl;
 
     // DEFINE SETUPPARSER
-    setupfilestream << "void setupParser(bool inputIsJson) { " << std::endl
+    setupfilestream << "void setupParser() { " << std::endl
             << "std::stringstream s;"
             << "s << \"Test program for: " << functionSignature << "\" << std::endl << R\"\"\"("  << getStructDefinitions() << ")\"\"\";" << std::endl
             << "\tparser = argparse::ArgumentParser(s.str());" << std::endl
-            << "\t" << "if(inputIsJson)" << std::endl << "\t\t" << "parser.add_argument(\"-i\", \"--input\").required();" << std::endl
-            << "\t" << "else { " << std::endl
-//            << getParserSetupTextFromHandargs(globals, true)
-//            << getParserSetupTextFromHandargs(args_of_func)
-            << "\t}" << std::endl
             << "} " << std::endl << std::endl;
 
     // DEFINE CALLFUNCTION
-    setupfilestream << "void callFunction(bool inputIsJson) { " << std::endl
-    << "\t" << "if(inputIsJson){" << std::endl
+    setupfilestream << "void callFunction() { " << std::endl
     << "\t\t" << "std::string inputfile = parser.get<std::string>(\"-i\");" << std::endl
     << "\t\t" << "std::ifstream i(inputfile);\n"
     "\t\tnlohmann::json j;\n"
     "\t\ti >> j;\n"
-    << getParserRetrievalText(globals, true, true)
-    << getParserRetrievalText(args_of_func, false, true);
+    << getParserRetrievalText(globals, true)
+    << getParserRetrievalText(args_of_func, false);
 
     auto output_var_name = "output";
     setupfilestream << "auto " << output_var_name << " = " <<  functionName << "(" << getUntypedArgumentNames(args_of_func) << ");" << std::endl;
     setupfilestream <<  getJsonOutputText(output_var_name, funcRetType);
 
-    setupfilestream << "\t\t" << "std::cout << output_json << std::endl;" << std::endl
-    << "\t}" << std::endl
-    //TODO: remove parser implmentation
-//    << "\telse {" << std::endl
-//    << getParserRetrievalText(globals, true)
-//    << getParserRetrievalText(args_of_func)
-//    << "\t\t" << "nlohmann::json output_json = " << functionName << "(" << getUntypedArgumentNames(args_of_func) << ");" << std::endl
-//    << "\t\t" << "std::cout << output_json << std::endl;" << std::endl
-//
-//    << "\t" << "}"
-    << std::endl;
+    setupfilestream << "\t\t" << "std::cout << output_json << std::endl;" << std::endl;
 
 
     setupfilestream << "} " << std::endl;
