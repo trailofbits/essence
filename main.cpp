@@ -50,106 +50,16 @@
 #include "llvm/Transforms/Utils.h"
 #include <filesystem>
 
-
-using namespace llvm;
-static ExitOnError ExitOnErr;
-
-static cl::opt<std::string>
-        InputFilename(cl::Positional, cl::desc("<input bitcode>"), cl::init("-"));
+#include "include/name_generation.hpp"
+#include "include/code_generation.hpp"
+#include "include/handsan.hpp"
+#include "LLVMExtractor.hpp"
 
 
-// note that the functions using this name should handle path construction so don't suffix this with /
-const std::string OUTPUT_DIR = "output";
+static llvm::ExitOnError ExitOnErr;
 
-
-int iterator_names_used = 0;
-std::vector<std::string> iterator_names;
-std::string getUniqueLoopIteratorName(){
-    std::string name = "i" + std::to_string(iterator_names_used);
-    iterator_names.push_back(name);
-    iterator_names_used++;
-    return name;
-}
-
-
-
-std::string getCTypeNameForLLVMType(Type* type){
-    if(type->isPointerTy())
-        return getCTypeNameForLLVMType(type->getPointerElementType()) + "*";
-
-//    bools get converted to i8 in llvm
-//    if(type->isIntegerTy(1))
-//        return "bool";
-
-    if(type->isIntegerTy(8))
-        return "char";
-
-    if(type->isIntegerTy(16))
-        return "int16_t";
-
-    if(type->isIntegerTy(32))
-        return "int32_t";
-
-    if(type->isIntegerTy(64))
-        return "int64_t";
-
-//    if(type->isIntegerTy(64))
-//        return "long long"; // this makes very strong assumptions on underling structures, should fix this
-
-    if(type->isVoidTy())
-        return "void";
-
-    if(type->isFloatTy())
-        return "float";
-
-    if(type->isFloatTy())
-        return "double";
-
-    if(type->isStructTy()){
-        std::string s = type->getStructName();
-        if(s.find("struct.") != std::string::npos)
-            s = s.replace(0, 7, ""); //removes struct. prefix
-
-        else if (s.find("union.") != std::string::npos)
-            s = s.replace(0, 6, ""); //removes union. prefix
-        return s;
-    }
-
-    if(type->isArrayTy())
-        throw std::invalid_argument("Arrays can't have their names expressed like this");
-
-    return "Not supported";
-}
-
-
-// llvm arguments are context bound so we can't use them as freely
-// therefore we keep all info in a custom structure
-// should it include a list for structs S.T each struct has members+name, and can I use that setup for scalar values as well?
-class handarg {
-public:
-    std::string name;
-    int position;
-    Type* type;
-    bool passByVal;
-
-    handarg(std::string name, int position, Type* type, bool passByVal = false){
-        this->name = name;
-        this->position = position;
-        this->type = type;
-        this->passByVal = passByVal;
-    };
-
-    //mirror some LLVM type functions
-    Type* getType(){ return this->type;};
-    Type* getTypeOrPointedType(){
-        if(this->type->isPointerTy())
-            return this->type->getPointerElementType();
-        return this->type;
-    };
-    bool isStructOrStructPtr(){ return this->type->isStructTy() || (this->type->isPointerTy() && this->type->getPointerElementType()->isStructTy());}
-    std::string getName(){ return this->name;};
-};
-
+static llvm::cl::opt<std::string>
+        InputFilename(llvm::cl::Positional, llvm::cl::desc("<input bitcode>"), llvm::cl::init("-"));
 
 
 // if we encounter a struct or union type we must define it first in our program
@@ -158,211 +68,22 @@ public:
 // we won't get into a nasty dependency problem. This follows trivially from that at each point
 // we either generate direct dependencies or they are already defined before hand.
 // To not re-define previously defined structs we save the name in an vector
+std::string getSetupFileText(std::string functionName, handsanitizer::Type *funcRetType, std::vector<handsanitizer::Argument> &args_of_func,
+                             std::vector<handsanitizer::GlobalVariable> &globals);
+
+std::vector<handsanitizer::Argument> extractArgumentsFromFunction(llvm::Function &f);
+
+void GenerateJsonInputTemplateFile(const std::string &funcName, std::vector<handsanitizer::Argument> &args_of_func,
+                                   std::vector<handsanitizer::GlobalVariable> &globals);
+
+std::vector<handsanitizer::GlobalVariable> extractGlobalValuesFromModule(std::unique_ptr<llvm::Module> &mod);
+
+void GenerateCppFunctionHarness(std::string &funcName, handsanitizer::Type *funcRetType, std::vector<handsanitizer::Argument> &args_of_func,
+                                std::vector<handsanitizer::GlobalVariable> &globals_of_func);
 
 
-
-// Types in llvm are unique, therefore we can create an bijective DefinedStruct -> StructType
-// I hope this uniqueness is also for structs
-// and save all the member names in DefinedStruct
-class DefinedStruct {
-public:
-    bool isUnion = false;
-    StructType* structType;
-    std::string definedCStructName;
-    std::vector<std::string> member_names; // implicitly ordered, can I make an tuple out of this combined with the member?
-
-    std::vector<std::pair<std::string, Type*>> getNamedMembers() {
-        std::vector<std::pair<std::string, Type*>> output;
-        if(member_names.size() != structType->getNumElements())
-            std::throw_with_nested("Not all members are named");
-
-        for(int i = 0; i < structType->getNumElements(); i++){
-            output.push_back(std::pair<std::string, Type*>(member_names[i], structType->getStructElementType(i)));
-
-        }
-        return output;
-    };
-};
-
-std::string getSetupFileText(std::string functionName, Type *funcRetType, std::vector<handarg> &args_of_func,
-                             std::vector<handarg> &globals);
-
-std::vector<handarg> extractArgumentsFromFunction(Function &f);
-
-void GenerateJsonInputTemplateFile(const std::string &funcName, std::vector<handarg> &args_of_func,
-                                   std::vector<handarg> &globals);
-
-std::vector<handarg> extractGlobalValuesFromModule(std::unique_ptr<Module> &mod);
-
-void GenerateCppFunctionHarness(std::string &funcName, Type *funcRetType, std::vector<handarg> &args_of_func,
-                                std::vector<handarg> &globals_of_func);
-
-enum StringFormat{
-    GENERATE_FORMAT_CPP_ADDRESSING,
-    GENERATE_FORMAT_CPP_VARIABLE,
-    GENERATE_FORMAT_JSON_ARRAY_ADDRESSING
-};
-
-const std::string CPP_ADDRESSING_DELIMITER = ".";
-const std::string LVALUE_DELIMITER = "_";
-const std::string POINTER_DENOTATION = "__p";
-const std::string ARRAY_INDEX_TOKEN = "i";
-// so big idea is to generate all source pieces from list<args>
-// with args = struct{ LLVMType, position, name}, and at each c++ location we need one to call ConvertLLVMTypeToC++,
-/*
- * Naming in an autogenerated context in which we want both descriptive names and don't easily know all names beforehand suck
- * Eventhough naming from globals and function arguments are trivial, we have to deal with temps for custom classes, with any number of named members which all can also be a custom or autogenerated name
- * To prevent any name clashes we settled on the following
- *
- * We keep a vector of names, one entry for how nested the variable is in an object hierarchy (i.e for struct Y { int a; }, struct X { Y i}; we have <name of x var, i, a>
- *
- */
-std::string joinStrings(std::vector<std::string> strings, StringFormat format){
-    std::stringstream output;
-    std::string delimiter = "";
-    if(format == GENERATE_FORMAT_CPP_ADDRESSING)
-        delimiter = CPP_ADDRESSING_DELIMITER;
-    if(format == GENERATE_FORMAT_CPP_VARIABLE)
-        delimiter = LVALUE_DELIMITER;
-
-
-    for(std::string s : strings){
-        if(format != GENERATE_FORMAT_CPP_VARIABLE && s == POINTER_DENOTATION)
-            continue; // don't print the pointer markings in lvalue as these are abstracted away
-        if(format == GENERATE_FORMAT_JSON_ARRAY_ADDRESSING){
-            if(std::find(iterator_names.begin(), iterator_names.end(), s) != iterator_names.end())
-                output << "[" << s << "]";
-            else
-                output << "[\"" << s << "\"]";
-        }
-        else{
-            output << s << delimiter;
-        }
-    }
-
-    auto retstring = output.str();
-    if(retstring.length() > 0 && format != GENERATE_FORMAT_JSON_ARRAY_ADDRESSING)
-        retstring.pop_back(); //remove trailing delimiter
-    return retstring;
-}
-
-// Unions get translated to structs in LLVM so this should also cover that
-std::vector<DefinedStruct> definedStructs;
-
-
-bool isStructAlreadyDefined(StructType* type){
-    for(auto s : definedStructs){
-        if(s.structType == type)
-            return true;
-    }
-    return false;
-}
-
-
-
-DefinedStruct getStructByLLVMType(StructType* structType){
-    for(auto s : definedStructs){
-        if(s.structType == structType)
-            return s; // will this deep copy the vector as well?
-    }
-    std::throw_with_nested("Struct is not defined");
-}
-std::stringstream definitionStrings;
-
-// Adds itself in the correct order to definitionStream
-void defineIfNeeded(Type* arg, bool isRetType = false){
-    // if we have a T**** we might still need to define T, so recurse instead of check
-    if(arg->isPointerTy())
-        defineIfNeeded(arg->getPointerElementType(), isRetType);
-
-    std::cout << "called for: " << getCTypeNameForLLVMType(arg);
-    if(arg->isStructTy()){ // we don't care about arrays thus no (is aggregrate type)
-        std::cout << " Found a struct type";
-
-        if(isStructAlreadyDefined((StructType*) arg))
-            return;
-        std::cout << "Not defined";
-        if(arg->getStructNumElements() > 0){
-            std::cout << "Has members";
-            std::stringstream  elementsString;
-            DefinedStruct newDefinedStruct;
-            if(arg->getStructName().find("union.") != std::string::npos)
-                newDefinedStruct.isUnion = true;
-
-            // all members need to be added, if any struct is referenced we need tto define it again
-            for(int i =0 ; i < arg->getStructNumElements(); i++){
-                auto child = arg->getStructElementType(i);
-
-                /*
-                 * A struct can contain 3 constructs which we might need to define
-                 * 1. pointer should always be tried to be defined
-                 * 2. a struct obviously
-                 * 3. array types
-                 */
-                if (child->isStructTy() || child->isPointerTy())
-                    defineIfNeeded(child);
-                if (child->isArrayTy()) {
-                    auto arrType = child->getArrayElementType();
-                    if (arrType->isStructTy() || arrType->isPointerTy())
-                        defineIfNeeded(arrType);
-                }
-
-                std::string childname = "e_" + std::to_string(i);
-                if(child->isArrayTy()){ // of course we can't have nice things in this world :(
-                    auto arrayType = child->getArrayElementType();
-                    auto arraySize = child->getArrayNumElements();
-                    elementsString << "\t" << getCTypeNameForLLVMType(arrayType) << " " << childname  << "[" << arraySize << "];" << std::endl;
-                }
-                else{
-                    elementsString << "\t" << getCTypeNameForLLVMType(child) << " " << childname  << ";" << std::endl;
-                }
-
-                newDefinedStruct.member_names.push_back(childname);
-            }
-
-            // TODO: use getCPPName instead of getStructName?
-            auto structName = getCTypeNameForLLVMType(arg);
-            if(isRetType)
-                structName = "returnType";
-            newDefinedStruct.structType = (StructType*) arg;
-            if(newDefinedStruct.isUnion)
-                definitionStrings << "typedef union ";
-            else
-                definitionStrings << "typedef struct ";
-            definitionStrings << structName << " { " << std::endl << elementsString.str() << "} " << structName << ";" <<  std::endl <<  std::endl;
-            newDefinedStruct.definedCStructName = structName;
-            definedStructs.push_back(newDefinedStruct);
-        }
-    }
-}
-
-std::string getJSONStructDeclartions(){
-    std::stringstream s;
-
-    for(auto& ds : definedStructs){
-        s << "NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(";
-        s << ds.definedCStructName << ", ";
-        for(auto& mem : ds.getNamedMembers()){
-            s << mem.first << ", ";
-        }
-        s.seekp(-2,s.cur); // removes trialing , by replacing it with )
-        s << ")" << std::endl;
-    }
-    return s.str();
-}
-
-void defineStructs(std::vector<handarg> args){
-    for(auto& a : args){
-        defineIfNeeded(a.getType());
-    }
-}
-
-std::string getStructDefinitions(){
-    return definitionStrings.str();
-}
-
-
-std::string getDefineGlobalsText(std::vector<handarg> globals){
+std::string getDefineGlobalsText(std::vector<handsanitizer::GlobalVariable> globals){
+    int a = getNum();
     std::stringstream s;
     for(auto& global : globals){
         s << "extern " << getCTypeNameForLLVMType(global.getType()) << " " << global.getName() << ";" << std::endl;
@@ -372,117 +93,6 @@ std::string getDefineGlobalsText(std::vector<handarg> globals){
 }
 
 
-// thus we only need a function which converts has a one-to-one with LLVM to c++ types,
-
-std::string getParserSetupTextForScalarType(std::string name, Type* type, bool isGlobal = false){
-    std::stringstream s;
-    std::string requiredString = ".required()";
-    if(isGlobal){
-        name = "global." + name;
-        requiredString = ""; //dirty hack
-    }
-    std::string action = ""; //parsing method
-
-    if(type->isIntegerTy(8))
-        action = "parseCharInput";
-
-    if(type->isIntegerTy(16))
-        action = "parseShortInput";
-
-    if(type->isIntegerTy(32))
-        action = "[](const std::string& value) {return stoi(value);}";
-
-    if(type->isIntegerTy(64))
-        action = "[](const std::string& value) {return stol(value);}";
-
-    if(type->isFloatTy())
-        action = "[](const std::string& value) {return stof(value);}";
-
-    if(type->isDoubleTy())
-        action = "[](const std::string& value) {return stod(value);}";
-
-
-    if(type->isIntegerTy(8) || type->isIntegerTy(16) || type->isIntegerTy(32) || type->isIntegerTy(64) || type->isFloatTy() || type->isDoubleTy()){
-        s << "\t\t" << "parser.add_argument(\"--" << name << "\")" << requiredString <<
-                                                           ".help(\"" << getCTypeNameForLLVMType(type) << "\")" <<
-                                                           ".action(" << action << ");" << std::endl;
-    }
-
-    return s.str();
-}
-
-
-
-
-std::string getParserSetupTextFromLLVMTypes(std::vector<std::string> name_prefix, Type* arg, bool isGlobal = false){
-    std::stringstream s;
-
-    if(arg->isStructTy()){
-        auto str = getStructByLLVMType((StructType*) arg);
-        for(auto& mem : str.getNamedMembers()){
-            std::vector<std::string> memberName(name_prefix);
-            memberName.push_back(mem.first);
-            s << getParserSetupTextFromLLVMTypes(memberName, mem.second, isGlobal);
-        }
-    }
-
-    if(arg->isPointerTy() && arg->getPointerElementType()->isStructTy()){
-//        auto structType = arg;
-        auto str = getStructByLLVMType((StructType*) arg->getPointerElementType());
-        for(auto& mem : str.getNamedMembers()){
-            std::vector<std::string> memberName(name_prefix);
-            memberName.push_back(mem.first);
-            s << getParserSetupTextFromLLVMTypes(memberName, mem.second, isGlobal); // but we need to maintain the counter
-        }
-//            std::string argname = name_prefix + "p" + std::to_string(counter);
-        // we dont encode pointers in name so just call recursively
-
-    }
-    else{
-        if(arg->isPointerTy())
-            s << getParserSetupTextFromLLVMTypes(name_prefix, arg->getPointerElementType(), isGlobal); // but we need to maintain the counter
-        else
-            s << getParserSetupTextForScalarType(joinStrings(name_prefix, GENERATE_FORMAT_CPP_ADDRESSING), arg, isGlobal);
-    }
-
-
-    return s.str();
-}
-
-// should include position in loop instead of relying on implicit order
-// wrapper around getParserSetupTextFromType
-std::string getParserSetupTextFromHandargs(std::vector<handarg> args, bool isForGlobals = false){
-    std::stringstream s;
-    for(auto& a : args){
-        std::vector<std::string> name;
-        name.push_back(a.getName());
-        s << getParserSetupTextFromLLVMTypes(name,a.type, isForGlobals);
-    }
-    return s.str();
-}
-
-
-std::string getStringFromJson(std::string output_var, std::string json_name, std::string tmp_name_1, std::string tmp_name_2, bool addNullTermination = true){
-    std::stringstream s;
-    s << "std::string " << tmp_name_1 << " = " << json_name << ".get<std::string>();" << std::endl;
-    s << "std::vector<char> " << tmp_name_2 << "(" << tmp_name_1 << ".begin(), " << tmp_name_1 << ".end());";
-    if(addNullTermination)
-        s << tmp_name_2 << ".push_back('\\x00');" << std::endl;
-    s << "char* " << output_var << " = &" << tmp_name_2 << "[0];" << std::endl;
-    return s.str();
-}
-
-
-std::string getStringLengthFromJson(std::string output_var, std::string json_name, std::string tmp_name_1, std::string tmp_name_2, bool addNullTermination = true){
-    std::stringstream s;
-    s << "std::string " << tmp_name_1 << " = " << json_name << ".get<std::string>();" << std::endl;
-    s << "std::vector<char> " << tmp_name_2 << "(" << tmp_name_1 << ".begin(), " << tmp_name_1 << ".end());";
-    if(addNullTermination)
-        s << tmp_name_2 << ".push_back('\x00');" << std::endl;
-    s << "int " << output_var << " = " << tmp_name_2 << ".size();" << std::endl;
-    return s.str();
-}
-
 std::vector<std::string> used_tmps;
 
 // a string is unique mostly for a string path like this
@@ -490,9 +100,13 @@ std::string getUniqueCppTmpString(std::vector<std::string> prefixes){
     auto s = joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE);
     used_tmps.push_back(s);
     s = s + std::to_string(used_tmps.size()); // really shitty implementation but  works for now
+
     return s;
 }
 
+std::string getStructDefinitions(){
+    return getRegisteredStructs();
+}
 
 // Names are constructed the following
 // Consider an actual argumetn to the tested function, and call their name root
@@ -509,12 +123,12 @@ std::string getUniqueCppTmpString(std::vector<std::string> prefixes){
  * notice that we cannot encode how many extra variables we have made to deal with pointers as we need to keep prefixes only reflect structure depth
  * otherwise the parser.get("--name") we would diverge with the setup
  */
-std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Type* type, bool isForGlobals = false){
+std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, handsanitizer::Type* type, bool isForGlobals = false){
     std::stringstream output;
     // arrays only exists in types unless they are global
     if(isForGlobals && type->isArrayTy()){
         int arrSize = type->getArrayNumElements();
-        Type* arrType = type->getArrayElementType();
+        handsanitizer::Type* arrType = type->getArrayElementType();
         std::string iterator_name = getUniqueLoopIteratorName(); // we require a name from this function to get proper generation
         output << "for(int " << iterator_name << " = 0; " << iterator_name << " < "<< arrSize << ";" << iterator_name << "++) {" << std::endl;
         std::vector<std::string> fullname(prefixes);
@@ -540,7 +154,7 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
                    << joinStrings(referenced_name, GENERATE_FORMAT_CPP_VARIABLE) << ";" << std::endl;
         }
         else { // we know ptr points to a non pointer
-            Type* pointeeType = type->getPointerElementType();
+            handsanitizer::Type* pointeeType = type->getPointerElementType();
             std::string elTypeName = getCTypeNameForLLVMType(pointeeType);
             std::string arrSize =  "j" + joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING) + ".size()";
             std::string jsonValue = "j" + joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING);
@@ -698,7 +312,7 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
         // then fill in struct arrays (as these can only be filled in post declaration)
 
 
-        DefinedStruct ds = getStructByLLVMType((StructType*)type);
+        handsanitizer::DefinedStruct ds = getStructByLLVMType(type);
         for(auto member : ds.getNamedMembers()){
             if(member.second->isArrayTy() == false){
                 std::vector<std::string> fullMemberName(prefixes);
@@ -743,7 +357,7 @@ std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, Ty
     return output.str();
 }
 
-std::string getParserRetrievalText(std::vector<handarg> args, bool isForGlobals = false){
+std::string getParserRetrievalText(std::vector<handsanitizer::NamedVariable> args, bool isForGlobals = false){
     std::stringstream s;
 
     for(auto& a : args){
@@ -761,7 +375,7 @@ std::string getParserRetrievalText(std::vector<handarg> args, bool isForGlobals 
 }
 
 
-std::string getTypedArgumentNames(std::vector<handarg> args){
+std::string getTypedArgumentNames(std::vector<handsanitizer::Argument> args){
     std::stringstream s;
     for(auto& a : args){
         if(a.passByVal && a.getType()->isPointerTy())
@@ -775,7 +389,7 @@ std::string getTypedArgumentNames(std::vector<handarg> args){
     return retstring;
 }
 
-std::string getUntypedArgumentNames(std::vector<handarg> args){
+std::string getUntypedArgumentNames(std::vector<handsanitizer::Argument> args){
     std::stringstream s;
     for(auto& a : args){
         s << a.getName()<< ',';
@@ -786,7 +400,7 @@ std::string getUntypedArgumentNames(std::vector<handarg> args){
     return retstring;
 }
 
-std::string getJsonObjectForScalar(Type* type){
+std::string getJsonObjectForScalar(handsanitizer::Type* type){
     //TODO fix this for arrays
     auto typeString = std::string("PLACEHOLDER");
     for (auto & c: typeString) //didn't want to include boost::to_upper
@@ -794,7 +408,7 @@ std::string getJsonObjectForScalar(Type* type){
     return "\"" + typeString + "_TOKEN" +  "\"" ;
 }
 
-std::string getJsonObjectForStruct(DefinedStruct ds, int depth = 2){
+std::string getJsonObjectForStruct(handsanitizer::DefinedStruct ds, int depth = 2){
     std::stringstream s;
     s << "{" << std::endl;
     for(auto& mem : ds.getNamedMembers()){
@@ -802,17 +416,17 @@ std::string getJsonObjectForStruct(DefinedStruct ds, int depth = 2){
             s << "\t";
         s << "\"" << mem.first << "\": ";
         if (mem.second->isStructTy()){
-            s << getJsonObjectForStruct(getStructByLLVMType((StructType*)mem.second), depth+1);
+            s << getJsonObjectForStruct(mem.second, depth+1);
         }
         else if(mem.second->isArrayTy()){
             s << "[";
-            auto arrType = mem.second->getArrayElementType();
+            auto arrMemType = mem.second->getArrayElementType();
             for(int i = 0; i < mem.second->getArrayNumElements(); i++){
-                if(arrType->isStructTy()){
-                    s << getJsonObjectForStruct(getStructByLLVMType((StructType*)arrType));
+                if(arrMemType->isStructTy()){
+                    s << getJsonObjectForStruct(arrMemType);
                 }
                 else{
-                    s << getJsonObjectForScalar(arrType);
+                    s << getJsonObjectForScalar(arrMemType);
                 }
                 if (i != mem.second->getArrayNumElements() -1){ // names should be unique inside a struct
                     s << ",";
@@ -821,7 +435,7 @@ std::string getJsonObjectForStruct(DefinedStruct ds, int depth = 2){
             s << "]";
         }
         else{
-            s << getJsonObjectForScalar((StructType*)mem.second);
+            s << getJsonObjectForScalar(mem.second);
         }
         if (mem.first != ds.getNamedMembers().back().first){ // names should be unique inside a struct
             s << ",";
@@ -834,56 +448,63 @@ std::string getJsonObjectForStruct(DefinedStruct ds, int depth = 2){
     return s.str();
 }
 
-std::string printRawLLVMType(Type* type){
-    std::string type_str;
-    llvm::raw_string_ostream rso(type_str);
-    type->print(rso);
-    return rso.str();
-}
-
-std::string getJsonInputTemplateText(std::vector<handarg> args, std::vector<handarg> globals){
+std::string getJsonInputTemplateText(std::vector<handsanitizer::Argument> args, std::vector<handsanitizer::GlobalVariable> globals){
     std::stringstream s;
     s << "{" << std::endl;
 
-    std::vector<handarg> all_elements = globals;
-    all_elements.insert(all_elements.end(), args.begin(), args.end());
-
-    for(auto& arg: all_elements){
-       s << "\t" << "\"" << arg.getName() << "\": ";
-        if (arg.getType()->isStructTy()){
-            s << getJsonObjectForStruct(getStructByLLVMType((StructType*)arg.getType()));
-        }
-        else if (arg.getType()->isPointerTy() && arg.getType()->getPointerElementType()->isStructTy()){
-            s << getJsonObjectForStruct(getStructByLLVMType((StructType*)arg.getType()->getPointerElementType()));
-        }
-        else if(arg.getType()->isArrayTy()){
-            s << "ARRAY_HERE";
-        }
-        else{
-            s << getJsonObjectForScalar(arg.getType());
-        }
-        // check if we are at the end of the iterator and skip trailing ','
-        // please let me know if you know something more elegant
-        if (&arg != &*all_elements.rbegin()){
-            s << "," << std::endl;
-        }
-
-    }
+    //TODO Fix this function
+//    std::vector<handarg> all_elements = globals;
+//    all_elements.insert(all_elements.end(), args.begin(), args.end());
+//
+//    for(auto& arg: all_elements){
+//       s << "\t" << "\"" << arg.getName() << "\": ";
+//        if (arg.getType()->isStructTy()){
+//            s << getJsonObjectForStruct(getStructByLLVMType((StructType*)arg.getType()));
+//        }
+//        else if (arg.getType()->isPointerTy() && arg.getType()->getPointerElementType()->isStructTy()){
+//            s << getJsonObjectForStruct(getStructByLLVMType((StructType*)arg.getType()->getPointerElementType()));
+//        }
+//        else if(arg.getType()->isArrayTy()){
+//            s << "ARRAY_HERE";
+//        }
+//        else{
+//            s << getJsonObjectForScalar(arg.getType());
+//        }
+//        // check if we are at the end of the iterator and skip trailing ','
+//        // please let me know if you know something more elegant
+//        if (&arg != &*all_elements.rbegin()){
+//            s << "," << std::endl;
+//        }
+//
+//    }
 
     s << std::endl << "}";
     return s.str();
 }
 
 int main(int argc, char** argv){
-    // init llvm and open module
-    InitLLVM X(argc, argv);
+    int a = getNum();
+    // parse llvm and open module
+    llvm::InitLLVM X(argc, argv);
     ExitOnErr.setBanner(std::string(argv[0]) + ": error: ");
-    LLVMContext Context;
-    cl::ParseCommandLineOptions(argc, argv, "llvm .bc -> .ll disassembler\n");
-    std::unique_ptr<MemoryBuffer> MB = ExitOnErr(errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputFilename)));
-    BitcodeFileContents IF = ExitOnErr(llvm::getBitcodeFileContents(*MB));
+    llvm::LLVMContext Context;
+    llvm::cl::ParseCommandLineOptions(argc, argv, "llvm .bc -> .ll disassembler\n");
+    std::unique_ptr<llvm::MemoryBuffer> MB = ExitOnErr(errorOrToExpected(llvm::MemoryBuffer::getFileOrSTDIN(InputFilename)));
+    llvm::BitcodeFileContents IF = ExitOnErr(llvm::getBitcodeFileContents(*MB));
     std::cout << "Bitcode file contains this many modules " << IF.Mods.size() << std::endl;
-    std::unique_ptr<Module> mod = ExitOnErr(IF.Mods[0].parseModule(Context));
+
+    for(auto& llvm_mod : IF.Mods){
+        std::unique_ptr<llvm::Module> mod = ExitOnErr(llvm_mod.parseModule(Context));
+        auto extractedMod = handsanitizer::ExtractModule(Context, mod);
+        extractedMod.parse();
+        for(auto& f : extractedMod.functions){
+            f.generate_cpp_file(f.name);
+            f.generate_json_input_template_file(f.name);
+        }
+    }
+
+
+
 
     int generatedFunctionCounter = 0;
     for(auto& f : mod->functions()) {
@@ -895,11 +516,11 @@ int main(int argc, char** argv){
         std::cout << "Found function: " << funcName << " pure: " << f.doesNotReadMemory() <<  " accepting guments: " << std::endl;
 
 
-        std::vector<handarg> globals_of_func = extractGlobalValuesFromModule(mod);
-        std::vector<handarg> args_of_func = extractArgumentsFromFunction(f);
+        std::vector<handsanitizer::GlobalVariable> globals_of_func = extractGlobalValuesFromModule(mod);
+        std::vector<handsanitizer::Argument> args_of_func = extractArgumentsFromFunction(f);
 
         // the return type might be a struct be an anonymous struct that is not defined in the bitcode module
-        Type* funcRetType = f.getReturnType();
+        llvm::Type* funcRetType = f.getReturnType();
         if(funcRetType->isStructTy())
             defineIfNeeded(funcRetType, true);
 
@@ -924,22 +545,22 @@ void GenerateCppFunctionHarness(std::string &funcName, Type *funcRetType, std::v
     ofs.close();
 }
 
-std::vector<handarg> extractGlobalValuesFromModule(std::unique_ptr<Module> &mod) {
-    std::vector<handarg> globals;
+std::vector<handsanitizer::GlobalVariable> extractGlobalValuesFromModule(std::unique_ptr<llvm::Module> &mod) {
+    std::vector<handsanitizer::GlobalVariable> globals;
     for(auto& global : mod->global_values())
     {
         // TODO: Should figure out what checks actually should be in here
         // Check if global is global value or something else,
         // I remove function declarations here, but what if a global value is a function pointer?
         if(!global.getType()->isFunctionTy()  && !(global.getType()->isPointerTy() && global.getType()->getPointerElementType()->isFunctionTy())  && global.isDSOLocal()){
-            globals.push_back(handarg(global.getName(), 0 , global.getType()->getPointerElementType(), false));
+            globals.push_back(handsanitizer::GlobalVariable(global.getName(), 0 , global.getType()->getPointerElementType(), false));
         }
     }
     return globals;
 }
 
-void GenerateJsonInputTemplateFile(const std::string &funcName, std::vector<handarg> &args_of_func,
-                                   std::vector<handarg> &globals) {
+void GenerateJsonInputTemplateFile(const std::string &funcName, std::vector<handsanitizer::Argument> &args_of_func,
+                                   std::vector<handsanitizer::GlobalVariable> &globals) {
     std::ofstream ofsj;
     auto output_file_json = OUTPUT_DIR + "/" + funcName + ".json";
     if(!std::filesystem::exists(OUTPUT_DIR))
@@ -950,8 +571,8 @@ void GenerateJsonInputTemplateFile(const std::string &funcName, std::vector<hand
     ofsj.close();
 }
 
-std::vector<handarg> extractArgumentsFromFunction(Function &f) {
-    std::vector<handarg> args;
+std::vector<handsanitizer::Argument> extractArgumentsFromFunction(llvm::Function &f) {
+    std::vector<handsanitizer::Argument> args;
     int argcounter = 0;
     for(auto& arg : f.args()){
         std::string argName = "";
@@ -961,13 +582,13 @@ std::vector<handarg> extractArgumentsFromFunction(Function &f) {
             argName = "e_" + std::to_string(argcounter);
 
         // TODO: Make sure that these names don't conflict with globals
-        std::cout << "Name: " << argName << " type: " << printRawLLVMType(arg.getType()) << std::endl;
-        args.push_back(handarg(argName, arg.getArgNo(), arg.getType(), arg.hasByValAttr()));
+//        std::cout << "Name: " << argName << " type: " << printRawLLVMType(arg.getType()) << std::endl;
+        args.push_back(handsanitizer::Argument(argName, arg.getArgNo(), arg.getType(), arg.hasByValAttr()));
         argcounter++;
     }
     return args;
 }
-std::string getJsonOutputForType(std::vector<std::string> prefixes, Type* type){
+std::string getJsonOutputForType(std::vector<std::string> prefixes, handsanitizer::Type* type){
     std::stringstream s;
     if(type->isPointerTy()){
         //TODO: Should this be casted to anything to ensure proper output format?
@@ -975,7 +596,7 @@ std::string getJsonOutputForType(std::vector<std::string> prefixes, Type* type){
             << " = " << joinStrings(prefixes, GENERATE_FORMAT_CPP_ADDRESSING) << ";" << std::endl;
     }
     else if(type->isStructTy()){
-        auto definedStruct = getStructByLLVMType((StructType*)type);
+        auto definedStruct = getStructByLLVMType(type);
         for(auto& mem : definedStruct.getNamedMembers()){
             std::vector<std::string> member_prefixes;
             member_prefixes.push_back(mem.first);
@@ -991,7 +612,7 @@ std::string getJsonOutputForType(std::vector<std::string> prefixes, Type* type){
 
 
 // assume output_var_name contains the return value already set
-std::string getJsonOutputText(std::string output_var_name, Type* retType){
+std::string getJsonOutputText(std::string output_var_name, handsanitizer::Type* retType){
     std::stringstream s;
     s << "nlohmann::json output_json;" << std::endl;
     std::vector<std::string> prefixes;
@@ -1006,14 +627,13 @@ std::string getJsonOutputText(std::string output_var_name, Type* retType){
  * header includes
  * struct declarations
  * test_function declaration
- * json struct mappings
  * helper functions used in generated text
  * global variable setup (including the parser)
  * setupParser Function
  * callFunction Function
  */
-std::string getSetupFileText(std::string functionName, Type *funcRetType, std::vector<handarg> &args_of_func,
-                             std::vector<handarg> &globals) {
+std::string getSetupFileText(std::string functionName, handsanitizer::Type *funcRetType, std::vector<handsanitizer::Argument> &args_of_func,
+                             std::vector<handsanitizer::GlobalVariable> &globals) {
     std::stringstream setupfilestream;
 
     // INCLUDES HEADERS
