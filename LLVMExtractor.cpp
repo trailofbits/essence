@@ -1,91 +1,98 @@
-#pragma once
+#include <sstream>
 #include "LLVMExtractor.hpp"
+#include "include/handsan.hpp"
+#include "include/name_generation.hpp"
+#include "include/code_generation.hpp"
+#include "Module.h"
+
 
 static llvm::ExitOnError ExitOnErr;
 
-std::string getNameForStructMember(int index){
+std::string getNameForStructMember(int index) {
     return "a" + std::to_string(index);
 }
 
-namespace handsanitizer{
-    void ModuleFromLLVMModuleFactory::defineStructIfNeeded(llvm::Type *type) {
-        if(this->hasStructDefined(type))
+namespace handsanitizer {
+
+    Module
+    ModuleFromLLVMModuleFactory::ExtractModule(llvm::LLVMContext &context, std::unique_ptr<llvm::Module> const &mod) {
+        Module handsan_mod;
+
+        handsan_mod.globals = this->ExtractGlobalVariables(handsan_mod, mod);
+        handsan_mod.functions = this->ExtractFunctions(handsan_mod, mod);
+        std::vector<Type *> user_types;
+        for (auto &t: this->user_defined_types)
+            user_types.push_back(t.first);
+
+        handsan_mod.user_defined_types = user_types; // type definitions are done implicitly during conversion
+        return handsan_mod;
+    }
+
+    void ModuleFromLLVMModuleFactory::defineStructIfNeeded(Module &mod, llvm::Type *type) {
+        if (this->hasStructDefined(mod, type))
             return;
 
-        std::vector<std::tuple<std::string, Type*>> members;
-        for(int i = 0; i < type->getStructNumElements(); i++){
-            llvm::Type* childType = type->getStructElementType(i);
+        std::vector<NamedVariable> members;
+        for (int i = 0; i < type->getStructNumElements(); i++) {
+            llvm::Type *childType = type->getStructElementType(i);
             auto childName = getNameForStructMember(i);
-            auto childMemType = ConvertLLVMTypeToHandsanitizerType(this, childType);
-            members.push_back(std::tuple<std::string, Type*>(childName, childMemType));
+            auto childMemType = ConvertLLVMTypeToHandsanitizerType(&mod, childType);
+            members.push_back(NamedVariable(childName, childMemType));
         }
 
         bool isUnion = false;
-        if(type->getStructName().find("union.") != std::string::npos)
+        if (type->getStructName().find("union.") != std::string::npos)
             isUnion = true;
 
+        std::string structName = getStructNameFromLLVMType(type);
+
+        //TODO add a case for when the struct has no name by it self as can happen for return types
+        Type *t = new Type(TYPE_NAMES::STRUCT, structName, members, isUnion);
+        this->user_defined_types.push_back(std::pair<Type *, llvm::Type *>(t, type));
+    }
+
+    std::string ModuleFromLLVMModuleFactory::getStructNameFromLLVMType(const llvm::Type *type) const {
         std::string structName = type->getStructName();
-        if(structName.find("struct.") != std::string::npos)
+        if (structName.find("struct.") != std::string::npos)
             structName = structName.replace(0, 7, ""); //removes struct. prefix
 
         else if (structName.find("union.") != std::string::npos)
             structName = structName.replace(0, 6, ""); //removes union. prefix
 
-        //TODO add a case for when the struct has no name by it self as can happen for return types
-        Type* t = new Type(TYPE_NAMES::STRUCT, structName, members, isUnion);
-        this->user_defined_types.push_back(t);
+        return structName;
     }
 
-
-    Module ModuleFromLLVMModuleFactory::ExtractModule(llvm::LLVMContext& context, std::unique_ptr<llvm::Module> const& mod){
-        Module handsan_mod;
-
-
-        handsan_mod.globals = ExtractGlobalVariables(mod);
-        handsan_mod.functions = ExtractFunctions(mod);
-        handsan_mod.user_defined_types = this->user_defined_types;
-
-        return handsan_mod;
-    }
-
-
-    std::vector<Function> ExtractFunctions(std::unique_ptr<llvm::Module> const& mod);
-    std::vector<Argument> ExtractArguments(llvm::Function& mod);
-
-    // users should clean up
-//    std::vector<Type*> ExtractTypeDefinitions(std::unique_ptr<llvm::Module> const& mod){
-//
-//    }
-
-
-    Purity getPurityOfFunction(const llvm::Function &f);
-
-    std::vector<Function> ModuleFromLLVMModuleFactory::ExtractFunctions(Module& mod, std::unique_ptr<llvm::Module> const& llvm_mod){
+    std::vector<Function>
+    ModuleFromLLVMModuleFactory::ExtractFunctions(Module &mod, std::unique_ptr<llvm::Module> const &llvm_mod) {
         std::vector<Function> funcs;
-        for(auto& f : llvm_mod->functions()) {
-            if(!this->functionHasCABI(f))
-                continue;
+        for (auto &f : llvm_mod->functions()) {
+            //TODO incorperate a setting for this such that we can still test
+//            if (!this->functionHasCABI(f))
+//                continue;
 
-            std::string fname = "";
-            if(f.hasName())
+            std::string fname;
+            if (f.hasName())
                 fname = f.getName();
             else
-                fname = mod.getUniqueTmpNameFor();
+                fname = mod.getUniqueTmpCPPVariableNameFor();
 
-            std::vector<handsanitizer::Argument> args_of_func = ExtractArguments(f);
-            Type* retType = ConvertLLVMTypeToHandsanitizerType(&mod, f.getReturnType());
-            Purity p = getPurityOfFunction(f);
+            std::vector<handsanitizer::Argument> args_of_func = ExtractArguments(mod, f);
+            Type *retType = ConvertLLVMTypeToHandsanitizerType(&mod, f.getReturnType());
+            Purity p = this->getPurityOfFunction(f);
 
-            Function extracted_f(f.getName(), retType,  args_of_func, p)
+            std::cout << "extracted func " <<  fname << std::endl;
+            Function extracted_f(fname, retType, args_of_func, p);
+            funcs.push_back(extracted_f);
         }
+        return funcs;
     }
 
-    Purity getPurityOfFunction(const llvm::Function &f) {
+    Purity ModuleFromLLVMModuleFactory::getPurityOfFunction(const llvm::Function &f) {
         Purity p;
-        if(f.doesNotAccessMemory())
+        if (f.doesNotAccessMemory())
             p = Purity::READ_NONE;
 
-        else if(f.doesNotReadMemory())
+        else if (f.doesNotReadMemory())
             p = Purity::WRITE_ONLY;
         else
             p = Purity::IMPURE;
@@ -93,13 +100,16 @@ namespace handsanitizer{
     }
 
 
-    std::vector<GlobalVariable> ExtractGlobalVariables(Module& hand_mod, std::unique_ptr<llvm::Module> const& llvm_mod){
+    std::vector<GlobalVariable> ModuleFromLLVMModuleFactory::ExtractGlobalVariables(Module &hand_mod,
+                                                                                    std::unique_ptr<llvm::Module> const &llvm_mod) {
         std::vector<handsanitizer::GlobalVariable> globals;
-        for(auto& global : llvm_mod->global_values())
-        {
+        for (auto &global : llvm_mod->global_values()) {
             // TODO: Should figure out what checks actually should be in here
-            if(!global.getType()->isFunctionTy()  && !(global.getType()->isPointerTy() && global.getType()->getPointerElementType()->isFunctionTy())  && global.isDSOLocal()){
-                GlobalVariable globalVariable(global.getName(), ConvertLLVMTypeToHandsanitizerType(&hand_mod, global.getType()));
+            if (!global.getType()->isFunctionTy() &&
+                !(global.getType()->isPointerTy() && global.getType()->getPointerElementType()->isFunctionTy()) &&
+                global.isDSOLocal()) {
+                GlobalVariable globalVariable(global.getName(),
+                                              this->ConvertLLVMTypeToHandsanitizerType(&hand_mod, global.getType()));
                 globals.push_back(globalVariable);
             }
         }
@@ -109,54 +119,119 @@ namespace handsanitizer{
     Function::Function(const std::string &name, Type *retType, std::vector<Argument> arguments, Purity purity)
             : name(name), retType(retType), arguments(arguments), purity(purity) {}
 
-
-    std::vector<Function>
-    ModuleFromLLVMModuleFactory::ExtractFunctions(Module &mod, const std::unique_ptr<llvm::Module> &llvm_mod) {
-        return std::vector<Function>();
-    }
-
-    std::vector<GlobalVariable>
-    ModuleFromLLVMModuleFactory::ExtractGlobalVariables(Module &mod, const std::unique_ptr<llvm::Module> &llvm_mod) {
-        return std::vector<GlobalVariable>();
-    }
-
     Type *ModuleFromLLVMModuleFactory::ConvertLLVMTypeToHandsanitizerType(Module *module, llvm::Type *type) {
-        Type* newType = nullptr;
-        if(type->isVoidTy())
+        Type *newType = nullptr;
+        if (type->isVoidTy())
             newType = new Type(TYPE_NAMES::VOID);
 
-        if(type->isIntegerTy())
+        if (type->isIntegerTy())
             newType = new Type(TYPE_NAMES::INTEGER, type->getIntegerBitWidth());
 
-        if(type->isFloatTy())
+        if (type->isFloatTy())
             newType = new Type(TYPE_NAMES::FLOAT);
 
-        if(type->isDoubleTy())
+        if (type->isDoubleTy())
             newType = new Type(TYPE_NAMES::DOUBLE);
 
-        if(type->isArrayTy())
-            newType = new Type(TYPE_NAMES::ARRAY, ConvertLLVMTypeToHandsanitizerType(module,type->getArrayElementType()), type->getArrayNumElements());
+        if (type->isArrayTy())
+            newType = new Type(TYPE_NAMES::ARRAY,
+                               ConvertLLVMTypeToHandsanitizerType(module, type->getArrayElementType()),
+                               type->getArrayNumElements());
 
-        if(type->isPointerTy())
-            newType = new Type(TYPE_NAMES::POINTER, ConvertLLVMTypeToHandsanitizerType(module,type->getPointerElementType()));
+        if (type->isPointerTy())
+            newType = new Type(TYPE_NAMES::POINTER,
+                               ConvertLLVMTypeToHandsanitizerType(module, type->getPointerElementType()));
 
-        if(type->isStructTy()){
-            if(!this->hasStructDefined(type))
-                this->defineStructIfNeeded(type);
-            newType = this->getDefinedStructByLLVMType(type);
+        if (type->isStructTy()) {
+            if (!this->hasStructDefined(*module, type))
+                this->defineStructIfNeeded(*module, type);
+            newType = this->getDefinedStructByLLVMType(*module, type);
         }
 
-        if(newType == nullptr)
+        if (newType == nullptr)
             throw std::invalid_argument("Could not convert llvm type");
 
         return newType;
     }
 
-    bool ModuleFromLLVMModuleFactory::functionHasCABI(llvm::Function& f) {
+    bool ModuleFromLLVMModuleFactory::functionHasCABI(llvm::Function &f) {
         std::string funcName = f.getName().str();
-        if(funcName.rfind("_Z",0) != std::string::npos){
+        if (funcName.rfind("_Z", 0) != std::string::npos) {
             return false; // mangeld c++ function
         }
         return true;
+    }
+
+    bool ModuleFromLLVMModuleFactory::hasStructDefined(Module &mod, llvm::Type *type) {
+        for (auto &user_type : this->user_defined_types) {
+            if (user_type.second == type)
+                return true;
+        }
+        return false;
+    }
+
+    Type *ModuleFromLLVMModuleFactory::getDefinedStructByLLVMType(Module &mod, llvm::Type *type) {
+        for (auto &user_type : this->user_defined_types) {
+            if (user_type.second == type)
+                return user_type.first;
+        }
+        throw std::invalid_argument("Type is not declared yet");
+    }
+
+    std::vector<Argument> ModuleFromLLVMModuleFactory::ExtractArguments(Module& mod, llvm::Function &f) {
+        std::vector<Argument> args;
+
+        for (auto &arg : f.args()) {
+            std::string argName = "";
+            if (arg.hasName())
+                argName = arg.getName();
+            else
+                argName = mod.getUniqueTmpCPPVariableNameFor();
+
+            Type* argType;
+            if(arg.hasByValAttr() && arg.getType()->isPointerTy())
+                argType = ConvertLLVMTypeToHandsanitizerType(&mod, arg.getType()->getPointerElementType());
+            else
+                argType = ConvertLLVMTypeToHandsanitizerType(&mod, arg.getType());
+
+            args.push_back(Argument(argName, argType, arg.hasByValAttr()));
+        }
+        return args;
+    }
+
+
+    std::string Type::getCTypeName() {
+        if (this->isPointerTy())
+            return this->getPointerElementType()->getCTypeName() + "*";
+
+        if (this->integerSize == 8)
+            return "char";
+
+        if (this->integerSize == 16)
+            return "int16_t";
+
+        if (this->integerSize == 32)
+            return "int32_t";
+
+        if (this->integerSize == 64)
+            return "int64_t";
+
+        if (this->isVoidTy())
+            return "void";
+
+        if (this->isFloatTy())
+            return "float";
+
+        if (this->isFloatTy())
+            return "double";
+
+        if (this->isStructTy()) {
+            return this->structName;
+        }
+
+        if (this->isArrayTy())
+            throw std::invalid_argument("Arrays can't have their names expressed like this");
+
+        return "Not supported";
     }
 }

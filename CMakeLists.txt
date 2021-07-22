@@ -12,7 +12,7 @@ find_package(nlohmann_json CONFIG REQUIRED)
 
 set(INCLUDE_DIR include)
 
-add_executable(HandSanitizer handsan.cpp LLVMExtractor.hpp LLVMExtractor.cpp)
+add_executable(HandSanitizer handsan.cpp LLVMExtractor.hpp LLVMExtractor.cpp Module.cpp Module.h)
 target_sources(HandSanitizer PRIVATE
         main.cpp name_generation.cpp code_generation.cpp ${INCLUDE_DIR}/code_generation.hpp ${INCLUDE_DIR}/code_generation.hpp ${INCLUDE_DIR}/handsan.hpp)
 

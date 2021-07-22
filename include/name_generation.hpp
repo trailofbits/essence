@@ -50,32 +50,13 @@ std::string getOutputJson();
 
 std::string getCTypeNameForLLVMType(handsanitizer::Type& type);
 
-//std::vector<std::string> TmpStringCandidates{
-//    "foo",
-//    "bar",
-//    "baz",
-//    "alice",
-//    "bob",
-//    "carlos",
-//    "dan",
-//    "erin",
-//    "eve",
-//    "judy",
-//    "levi",
-//    "micheal",
-//    "panda",
-//    "vera",
-//    "victor",
-//    "ted",
-//
-//};
+
 
 // returns a random string from dictionary
 //std::string getRandomStringAddition(); // should not be used by users?
 std::string getUniqueCPPTmpName();
 std::string getUniqueLoopIteratorName();
 
-handsanitizer::DefinedStruct getStructByLLVMType(llvm::StructType& structType);
 
 
 void reserveName(std::string name); // makes sure no other variable will ever use the same name
@@ -91,7 +72,7 @@ std::string getRegisteredStructs();
 void defineIfNeeded(llvm::Type& arg, bool isRetType = false);
 
 // Unions get translated to structs in LLVM so this should also cover that
-void defineStructs(std::vector<handsanitizer::Type&> args);
 
+std::string getJsonOutputText(std::string output_var_name, handsanitizer::Type* retType);
 #endif //HANDSANITIZER_NAME_GENERATION_HPP
 

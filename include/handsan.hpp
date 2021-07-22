@@ -9,28 +9,6 @@
 #include "llvm/IR/DerivedTypes.h"
 
 namespace handsanitizer {
-
-
-    class handarg {
-    public:
-        std::string name;
-        int position;
-        llvm::Type *type;
-        bool passByVal;
-
-        handarg(std::string name, int position, llvm::Type *type, bool passByVal = false) {
-            this->name = name;
-            this->position = position;
-            this->type = type;
-            this->passByVal = passByVal;
-        };
-
-        llvm::Type *getType();
-
-        std::string getName();
-    };
-
-
     enum class TYPE_NAMES{
         VOID,
         INTEGER, // bool is an integer
@@ -40,37 +18,48 @@ namespace handsanitizer {
         ARRAY,
         POINTER
     };
+    struct NamedVariable;
 
     class Type {
     public:
         std::string getCTypeName();
 
-        Type(TYPE_NAMES typeName);
-        Type(TYPE_NAMES typeName, unsigned int const intSize);
-        Type(TYPE_NAMES typeName, Type* pointerElementType);
-        Type(TYPE_NAMES typeName, Type* arrayElementType, uint64_t arraySize);
-        Type(TYPE_NAMES typeName, std::string structName, std::vector<std::tuple<std::string, Type*>> members, bool isUnion = false);
-        Type(TYPE_NAMES typeName, Type* pointerElementType);
+        Type(TYPE_NAMES typeName) : type(typeName){};
+        Type(TYPE_NAMES typeName, unsigned int const intSize): type(typeName), integerSize(intSize){};
+        Type(TYPE_NAMES typeName, Type* pointerElementType): type(typeName), pointerElementType(pointerElementType){};
+        Type(TYPE_NAMES typeName, Type* arrayElementType, uint64_t arraySize):type(typeName), arrayElementType(arrayElementType), arraySize(arraySize){};
+        Type(TYPE_NAMES typeName, std::string structName, std::vector<NamedVariable> members, bool isUnion = false): type(typeName), structName(structName), structMembers(members), structIsUnion(isUnion){};
+
 
         // scalar values
-        bool isVoidTy();
-        bool isIntegerTy(int size = 32);
-        bool isFloat();
-        bool isDouble();
+        bool isVoidTy() { return type == TYPE_NAMES::VOID;};
+        bool isIntegerTy(int size = 32) { return type == TYPE_NAMES::INTEGER && integerSize == size;};
+        bool isFloatTy() { return type == TYPE_NAMES::FLOAT;};
+        bool isDoubleTy() { return type == TYPE_NAMES::DOUBLE;};
 
         // array
-        bool isArrayTy();
-        int getArrayNumElements();
-        Type *getArrayElementType();
+        bool isArrayTy() { return type == TYPE_NAMES::ARRAY;};
+        int getArrayNumElements() { return arraySize;};
+        Type *getArrayElementType() { return arrayElementType;};
 
         // pointer
-        bool isPointerTy();
-        Type *getPointerElementType();
+        bool isPointerTy() { return type == TYPE_NAMES::POINTER;};
+        Type *getPointerElementType() { return pointerElementType;};
 
         // struct
-        bool isStructTy();
-        bool isUnion();
-        std::vector<std::tuple<std::string, Type*>> getNamedMembers();
+        bool isStructTy() { return type == TYPE_NAMES::STRUCT;};
+        bool isUnion() { return structIsUnion;};
+        std::vector<NamedVariable> getNamedMembers() { return structMembers;};
+
+    private:
+        TYPE_NAMES type;
+        unsigned int integerSize = 0;
+        Type* pointerElementType = nullptr;
+        Type* arrayElementType = nullptr;;
+        uint64_t arraySize = 0;
+        std::string structName = "";
+        std::vector<NamedVariable> structMembers;
+        bool structIsUnion = false;
     };
 
 
@@ -81,24 +70,22 @@ namespace handsanitizer {
             this->type = type;
             this->passByVal = passByVal;
         };
+    public:
         Type *type;
         std::string name;
         bool passByVal;
-        Type* getType();
-        std::string getName();
+        Type* getType() { return this->type;};
+        std::string getName() { return this->name;};
     };
 
 
-    class GlobalVariable : NamedVariable {
-    public:
+    struct GlobalVariable : NamedVariable {
         GlobalVariable(std::string name, Type* type) : NamedVariable(name, type){};
     };
 
-    class Argument : NamedVariable {
+    struct Argument : NamedVariable {
     public:
-        Argument(std::string name, Type* type, bool isPassByValue) : NamedVariable(name, type){
-            this->isPasByValue = isPassByValue;
-        };
+        Argument(std::string name, Type* type, bool isPassByValue) : NamedVariable(name, type), isPasByValue(isPassByValue){};
         bool isPasByValue;
     };
 
@@ -111,39 +98,11 @@ namespace handsanitizer {
     class Function {
     public:
         Function(const std::string &name, Type *retType, std::vector<Argument> arguments, Purity purity);
-        void generate_cpp_file(std::string dest_file_path);
-        void generate_json_input_template_file(std::string dest_file_path);
 
         std::string name;
         Type *retType;
         std::vector<Argument> arguments; // implicitly ordered
         Purity purity;
-        
-    private:
-        std::string getSetupFileText(
-                std::vector<handarg> &globals); // globals are not part of the function
-    };
-
-    class Module {
-    public:
-        std::vector<Type*> user_defined_types;
-        std::vector<GlobalVariable> globals;
-        std::vector<Function> functions;
-
-        std::string getUniqueTmpNameFor(std::vector<std::string> prefixes);
-        std::string getUniqueTmpNameFor();
-
-        void parse();
-    };
-
-
-    class DefinedStruct {
-    public:
-        bool isUnion = false;
-        llvm::StructType *structType;
-        std::string definedCStructName;
-        std::vector<std::string> member_names; // implicitly ordered, can I make an tuple out of this combined with the member?
-        std::vector<std::pair<std::string, handsanitizer::Type *>> getNamedMembers();
     };
 }
 

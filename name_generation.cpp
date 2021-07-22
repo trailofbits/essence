@@ -7,7 +7,7 @@
 std::string getInputJson(){ return JSON_INPUT_FILE_VARIABLE; }
 std::string getOutputJson(){ return JSON_OUTPUT_FILE_VARIABLE; }
 
-std::vector<handsanitizer::DefinedStruct> definedStructs;
+
 
 
 std::string CPP_ADDRESSING_DELIMITER = ".";
@@ -58,152 +58,162 @@ std::string joinStrings(std::vector<std::string> strings, StringJoiningFormat fo
 }
 
 
-bool isStructAlreadyDefined(llvm::StructType* type){
-    for(auto s : definedStructs){
-        if(s.structType == type)
-            return true;
-    }
-    return false;
-}
-
-
-
-handsanitizer::DefinedStruct getStructByLLVMType(handsanitizer::Type* structType){
-    for(auto s : definedStructs){
-        if(s.structType == structType)
-            return s; // will this deep copy the vector as well?
-    }
-    std::throw_with_nested("Struct is not defined");
-}
 
 int getNum(){ return 1;}
 // Adds itself in the correct order to definitionStream
-void defineIfNeeded(llvm::Type* arg, bool isRetType){
-    // if we have a T**** we might still need to define T, so recurse instead of check
-    std::stringstream definitionStrings;
-    if(arg->isPointerTy())
-        defineIfNeeded(arg->getPointerElementType(), isRetType);
+//void defineIfNeeded(llvm::Type* arg, bool isRetType){
+//    // if we have a T**** we might still need to define T, so recurse instead of check
+//    std::stringstream definitionStrings;
+//    if(arg->isPointerTy())
+//        defineIfNeeded(arg->getPointerElementType(), isRetType);
+//
+////    std::cout << "called for: " << getCTypeNameForLLVMType(arg);
+//    if(arg->isStructTy()){ // we don't care about arrays thus no (is aggregrate type)
+//        std::cout << " Found a struct type";
+//
+//        if(isStructAlreadyDefined((llvm::StructType*) arg))
+//            return;
+//        std::cout << "Not defined";
+//        if(arg->getStructNumElements() > 0){
+//            std::cout << "Has members";
+//            std::stringstream  elementsString;
+//
+//            if(arg->getStructName().find("union.") != std::string::npos)
+//                newDefinedStruct.isUnion = true;
+//
+//            // all members need to be added, if any struct is referenced we need tto define it again
+//            for(int i =0 ; i < arg->getStructNumElements(); i++){
+//                auto child = arg->getStructElementType(i);
+//
+//                /*
+//                 * A struct can contain 3 constructs which we might need to define
+//                 * 1. pointer should always be tried to be defined
+//                 * 2. a struct obviously
+//                 * 3. array types
+//                 */
+//                if (child->isStructTy() || child->isPointerTy())
+//                    defineIfNeeded(child);
+//                if (child->isArrayTy()) {
+//                    auto arrType = child->getArrayElementType();
+//                    if (arrType->isStructTy() || arrType->isPointerTy())
+//                        defineIfNeeded(arrType);
+//                }
+//
+//                std::string childname = "e_" + std::to_string(i);
+//                if(child->isArrayTy()){ // of course we can't have nice things in this world :(
+//                    auto arrayType = child->getArrayElementType();
+//                    auto arraySize = child->getArrayNumElements();
+//                    elementsString << "\t" << getCTypeNameForLLVMType(arrayType) << " " << childname  << "[" << arraySize << "];" << std::endl;
+//                }
+//                else{
+//                    elementsString << "\t" << getCTypeNameForLLVMType(child) << " " << childname  << ";" << std::endl;
+//                }
+//
+//                newDefinedStruct.member_names.push_back(childname);
+//            }
+//
+//            // TODO: use getCPPName instead of getStructName?
+//            auto structName = getCTypeNameForLLVMType(arg);
+//            if(isRetType)
+//                structName = "returnType";
+//            newDefinedStruct.structType = (llvm::StructType*) arg;
+//            if(newDefinedStruct.isUnion)
+//                definitionStrings << "typedef union ";
+//            else
+//                definitionStrings << "typedef struct ";
+//            definitionStrings << structName << " { " << std::endl << elementsString.str() << "} " << structName << ";" <<  std::endl <<  std::endl;
+//            registerStruct(definitionStrings.str());
+//            newDefinedStruct.definedCStructName = structName;
+//            definedStructs.push_back(newDefinedStruct);
+//        }
+//    }
+//}
 
-//    std::cout << "called for: " << getCTypeNameForLLVMType(arg);
-    if(arg->isStructTy()){ // we don't care about arrays thus no (is aggregrate type)
-        std::cout << " Found a struct type";
-
-        if(isStructAlreadyDefined((llvm::StructType*) arg))
-            return;
-        std::cout << "Not defined";
-        if(arg->getStructNumElements() > 0){
-            std::cout << "Has members";
-            std::stringstream  elementsString;
-            handsanitizer::DefinedStruct newDefinedStruct;
-            if(arg->getStructName().find("union.") != std::string::npos)
-                newDefinedStruct.isUnion = true;
-
-            // all members need to be added, if any struct is referenced we need tto define it again
-            for(int i =0 ; i < arg->getStructNumElements(); i++){
-                auto child = arg->getStructElementType(i);
-
-                /*
-                 * A struct can contain 3 constructs which we might need to define
-                 * 1. pointer should always be tried to be defined
-                 * 2. a struct obviously
-                 * 3. array types
-                 */
-                if (child->isStructTy() || child->isPointerTy())
-                    defineIfNeeded(child);
-                if (child->isArrayTy()) {
-                    auto arrType = child->getArrayElementType();
-                    if (arrType->isStructTy() || arrType->isPointerTy())
-                        defineIfNeeded(arrType);
-                }
-
-                std::string childname = "e_" + std::to_string(i);
-                if(child->isArrayTy()){ // of course we can't have nice things in this world :(
-                    auto arrayType = child->getArrayElementType();
-                    auto arraySize = child->getArrayNumElements();
-                    elementsString << "\t" << getCTypeNameForLLVMType(arrayType) << " " << childname  << "[" << arraySize << "];" << std::endl;
-                }
-                else{
-                    elementsString << "\t" << getCTypeNameForLLVMType(child) << " " << childname  << ";" << std::endl;
-                }
-
-                newDefinedStruct.member_names.push_back(childname);
-            }
-
-            // TODO: use getCPPName instead of getStructName?
-            auto structName = getCTypeNameForLLVMType(arg);
-            if(isRetType)
-                structName = "returnType";
-            newDefinedStruct.structType = (llvm::StructType*) arg;
-            if(newDefinedStruct.isUnion)
-                definitionStrings << "typedef union ";
-            else
-                definitionStrings << "typedef struct ";
-            definitionStrings << structName << " { " << std::endl << elementsString.str() << "} " << structName << ";" <<  std::endl <<  std::endl;
-            registerStruct(definitionStrings.str());
-            newDefinedStruct.definedCStructName = structName;
-            definedStructs.push_back(newDefinedStruct);
-        }
-    }
-}
-
-
-std::string getCTypeNameForLLVMType(handsanitizer::Type* type){
-    if(type->isPointerTy())
-        return getCTypeNameForLLVMType(type->getPointerElementType()) + "*";
-
-//    bools get converted to i8 in llvm
-//    if(type->isIntegerTy(1))
-//        return "bool";
-
-    if(type->isIntegerTy(8))
-        return "char";
-
-    if(type->isIntegerTy(16))
-        return "int16_t";
-
-    if(type->isIntegerTy(32))
-        return "int32_t";
-
-    if(type->isIntegerTy(64))
-        return "int64_t";
-
+//
+//std::string getCTypeNameForLLVMType(handsanitizer::Type* type){
+//    if(type->isPointerTy())
+//        return getCTypeNameForLLVMType(type->getPointerElementType()) + "*";
+//
+////    bools get converted to i8 in llvm
+////    if(type->isIntegerTy(1))
+////        return "bool";
+//
+//    if(type->isIntegerTy(8))
+//        return "char";
+//
+//    if(type->isIntegerTy(16))
+//        return "int16_t";
+//
+//    if(type->isIntegerTy(32))
+//        return "int32_t";
+//
 //    if(type->isIntegerTy(64))
-//        return "long long"; // this makes very strong assumptions on underling structures, should fix this
+//        return "int64_t";
+//
+////    if(type->isIntegerTy(64))
+////        return "long long"; // this makes very strong assumptions on underling structures, should fix this
+//
+//    if(type->isVoidTy())
+//        return "void";
+//
+//    if(type->isFloatTy())
+//        return "float";
+//
+//    if(type->isFloatTy())
+//        return "double";
+//
+//    if(type->isStructTy()){
+//        std::string s = type->getStructName();
+//        if(s.find("struct.") != std::string::npos)
+//            s = s.replace(0, 7, ""); //removes struct. prefix
+//
+//        else if (s.find("union.") != std::string::npos)
+//            s = s.replace(0, 6, ""); //removes union. prefix
+//        return s;
+//    }
+//
+//    if(type->isArrayTy())
+//        throw std::invalid_argument("Arrays can't have their names expressed like this");
+//
+//    return "Not supported";
+//}
 
-    if(type->isVoidTy())
-        return "void";
-
-    if(type->isFloatTy())
-        return "float";
-
-    if(type->isFloatTy())
-        return "double";
-
-    if(type->isStructTy()){
-        std::string s = type->getStructName();
-        if(s.find("struct.") != std::string::npos)
-            s = s.replace(0, 7, ""); //removes struct. prefix
-
-        else if (s.find("union.") != std::string::npos)
-            s = s.replace(0, 6, ""); //removes union. prefix
-        return s;
-    }
-
-    if(type->isArrayTy())
-        throw std::invalid_argument("Arrays can't have their names expressed like this");
-
-    return "Not supported";
-}
-
-void defineStructs(std::vector<handarg> args){
-    for(auto& a : args){
-        defineIfNeeded(a.getType());
-    }
-}
 std::string getRegisteredStructs(){
     return "";
 }
 
 void registerStruct(std::string s){
 
+}
+
+std::string getJsonOutputForType(std::vector<std::string> prefixes, handsanitizer::Type* type){
+    std::stringstream s;
+    if(type->isPointerTy()){
+        //TODO: Should this be casted to anything to ensure proper output format?
+        s << "output_json" << joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING)
+          << " = " << joinStrings(prefixes, GENERATE_FORMAT_CPP_ADDRESSING) << ";" << std::endl;
+    }
+    else if(type->isStructTy()){
+        for(auto& mem : type->getNamedMembers()){
+            std::vector<std::string> member_prefixes;
+            member_prefixes.push_back(mem.getName());
+            s << getJsonOutputForType(member_prefixes, mem.getType()) << std::endl;
+        }
+    }
+    else{
+        s << "output_json" << joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING)
+          << " = " << joinStrings(prefixes, GENERATE_FORMAT_CPP_ADDRESSING) << ";" << std::endl;
+    }
+    return s.str();
+}
+
+
+// assume output_var_name contains the return value already set
+std::string getJsonOutputText(std::string output_var_name, handsanitizer::Type* retType){
+    std::stringstream s;
+    s << "nlohmann::json output_json;" << std::endl;
+    std::vector<std::string> prefixes;
+    prefixes.push_back(output_var_name);
+    s << getJsonOutputForType(prefixes, retType);
+    return s.str();
 }
