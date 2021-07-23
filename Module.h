@@ -19,13 +19,13 @@ namespace handsanitizer{
         void generate_cpp_file_for_function(Function& f, std::string dest_file_path);
         void generate_json_input_template_file(Function& f, std::string dest_file_path);
 
-        std::string getTextForUserDefinedTypes();
-
-        std::string getTextForUserDefinedType(Type *type);
 
 
     private:
-        std::vector<std::string> definedNames;
+        std::vector<std::string> definedNamesForFunctionBeingGenerated;
+
+        std::string getTextForUserDefinedTypes();
+        std::string getTextForUserDefinedType(Type *type);
 
         bool isNameDefined(std::string name);
         std::string getRandomDummyVariableName();
@@ -36,6 +36,9 @@ namespace handsanitizer{
         std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, handsanitizer::Type* type, bool isForGlobals = false);
         std::string getParserRetrievalTextForArguments(std::vector<Argument> args);
         std::string getParserRetrievalTextForGlobals();
+
+        std::string getJsonOutputText(std::string output_var_name, handsanitizer::Type* retType);
+        std::string getJsonOutputForType(std::string json_name, std::vector<std::string> prefixes, handsanitizer::Type* type);
     };
 }
 

@@ -185,35 +185,3 @@ std::string getRegisteredStructs(){
 void registerStruct(std::string s){
 
 }
-
-std::string getJsonOutputForType(std::vector<std::string> prefixes, handsanitizer::Type* type){
-    std::stringstream s;
-    if(type->isPointerTy()){
-        //TODO: Should this be casted to anything to ensure proper output format?
-        s << "output_json" << joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING)
-          << " = " << joinStrings(prefixes, GENERATE_FORMAT_CPP_ADDRESSING) << ";" << std::endl;
-    }
-    else if(type->isStructTy()){
-        for(auto& mem : type->getNamedMembers()){
-            std::vector<std::string> member_prefixes;
-            member_prefixes.push_back(mem.getName());
-            s << getJsonOutputForType(member_prefixes, mem.getType()) << std::endl;
-        }
-    }
-    else{
-        s << "output_json" << joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING)
-          << " = " << joinStrings(prefixes, GENERATE_FORMAT_CPP_ADDRESSING) << ";" << std::endl;
-    }
-    return s.str();
-}
-
-
-// assume output_var_name contains the return value already set
-std::string getJsonOutputText(std::string output_var_name, handsanitizer::Type* retType){
-    std::stringstream s;
-    s << "nlohmann::json output_json;" << std::endl;
-    std::vector<std::string> prefixes;
-    prefixes.push_back(output_var_name);
-    s << getJsonOutputForType(prefixes, retType);
-    return s.str();
-}

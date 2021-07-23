@@ -10,6 +10,7 @@
 
 namespace handsanitizer{
 void Module::generate_cpp_file_for_function(Function &f, std::string dest_file_path) {
+    this->definedNamesForFunctionBeingGenerated.clear();
     std::stringstream setupfilestream;
 
     // INCLUDES HEADERS
@@ -394,7 +395,7 @@ std::string Module::getParserRetrievalForNamedType(std::vector<std::string> pref
         int counter = 0;
         while(true){
             if(!this->isNameDefined(candidate)){
-                definedNames.push_back(candidate);
+                definedNamesForFunctionBeingGenerated.push_back(candidate);
                 return candidate;
             }
 
@@ -433,7 +434,7 @@ std::string Module::getParserRetrievalForNamedType(std::vector<std::string> pref
     }
 
     bool Module::isNameDefined(std::string name) {
-        return std::find(std::begin(this->definedNames), std::end(this->definedNames), name) != std::end(this->definedNames);
+        return std::find(std::begin(this->definedNamesForFunctionBeingGenerated), std::end(this->definedNamesForFunctionBeingGenerated), name) != std::end(this->definedNamesForFunctionBeingGenerated);
     }
 
     std::string Module::getUniqueTmpCPPVariableNameFor(std::string prefix) {
@@ -442,5 +443,89 @@ std::string Module::getParserRetrievalForNamedType(std::vector<std::string> pref
         return getUniqueTmpCPPVariableNameFor(vec);
     }
 
+    std::string getJsonInputTemplateTextForJsonRvalue(Type& arg){
+        std::stringstream output;
+        if(arg.isPointerTy())
+            output << getJsonInputTemplateTextForJsonRvalue(*arg.getPointerElementType()); // we abstract pointers away
+
+        // if scalar
+        if(arg.isArrayTy() == false && arg.isStructTy() == false && !arg.isPointerTy()){
+            output << arg.getCTypeName();
+        }
+
+        if(arg.isArrayTy()){
+            output << "[";
+            for(int i = 0; i < arg.getArrayNumElements(); i++){
+                output << getJsonInputTemplateTextForJsonRvalue(*arg.getArrayElementType());
+                if (i != arg.getArrayNumElements() -1){
+                    output << ",";
+                }
+            }
+            output << "]";
+        }
+
+        if(arg.isStructTy()){
+            output << "{";
+            for(auto& mem : arg.getNamedMembers()){
+                output << "\"" << mem.getName() << "\"" << ": " << getJsonInputTemplateTextForJsonRvalue(*mem.getType());
+                if (mem.getName() != arg.getNamedMembers().back().getName()){ // names should be unique
+                    output << "," << std::endl;
+                }
+            }
+            output << "}";
+        }
+        return output.str();
+    }
+
+    void Module::generate_json_input_template_file(Function &f, std::string dest_file_path) {
+        std::ofstream of;
+        of.open(dest_file_path, std::ofstream::out | std::ofstream::trunc);
+
+        std::stringstream output;
+        output << "{" << std::endl;
+        for(auto& arg: f.arguments){
+            output << "\"" << arg.getName() << "\"" << ": " << getJsonInputTemplateTextForJsonRvalue(*arg.getType());
+            if (arg.getName() != f.arguments.back().getName()){
+                output << "," << std::endl;
+            }
+        }
+        output << "}" << std::endl;
+        of << output.str();
+        of.close();
+    }
+
+
+    std::string Module::getJsonOutputForType(std::string json_name, std::vector<std::string> prefixes, handsanitizer::Type* type){
+        std::stringstream s;
+        if(type->isPointerTy()){
+            //TODO: Should this be casted to anything to ensure proper output format?
+            s << json_name << joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING)
+              << " = " << joinStrings(prefixes, GENERATE_FORMAT_CPP_ADDRESSING) << ";" << std::endl;
+        }
+        else if(type->isStructTy()){
+            for(auto& mem : type->getNamedMembers()){
+                std::vector<std::string> member_prefixes;
+                member_prefixes.push_back(mem.getName());
+                s << getJsonOutputForType(json_name, member_prefixes, mem.getType()) << std::endl;
+            }
+        }
+        else{
+            s << json_name << joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING)
+              << " = " << joinStrings(prefixes, GENERATE_FORMAT_CPP_ADDRESSING) << ";" << std::endl;
+        }
+        return s.str();
+    }
+
+
+// assume output_var_name contains the return value already set
+    std::string Module::getJsonOutputText(std::string output_var_name, handsanitizer::Type* retType){
+        std::stringstream s;
+        auto jsonVarName = getUniqueTmpCPPVariableNameFor("output_json");
+        s << "nlohmann::json " <<  jsonVarName  << ";" << std::endl;
+        std::vector<std::string> prefixes;
+        prefixes.push_back(output_var_name);
+        s << getJsonOutputForType(jsonVarName, prefixes, retType);
+        return s.str();
+    }
 
 }
