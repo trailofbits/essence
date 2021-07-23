@@ -30,7 +30,7 @@ void Module::generate_cpp_file_for_function(Function &f, std::string dest_file_p
 
     // DECLARE GLOBALS
     setupfilestream << "argparse::ArgumentParser parser;" << std::endl << std::endl;
-    setupfilestream << "// globals from module" << std::endl << getTextForGlobals() << std::endl << std::endl;
+    setupfilestream << "// globals from module" << std::endl << getGlobalDeclarationsText() << std::endl << std::endl;
 
 
     // DEFINE SETUPPARSER
@@ -42,18 +42,22 @@ void Module::generate_cpp_file_for_function(Function &f, std::string dest_file_p
 
     // DEFINE CALLFUNCTION
     setupfilestream << "void callFunction() { " << std::endl
-                    << "\t\t" << "std::string inputfile = parser.get<std::string>(\"-i\");" << std::endl
-                    << "\t\t" << "std::ifstream i(inputfile);\n"
-                                 "\t\tnlohmann::json j;\n"
-                                 "\t\ti >> j;\n"
-                    << getParserRetrievalTextForGlobals()
-                    << getParserRetrievalTextForArguments(f.arguments);
+                    << "\t\t" << "std::string inputfile = parser.get<std::string>(\"-i\");" << std::endl;
+    auto inputFileName = getUniqueTmpCPPVariableNameFor("inputFile");
+    auto jsonInputVariable = getUniqueTmpCPPVariableNameFor("j");
+                    setupfilestream << "\t\t" << "std::ifstream " <<  inputFileName << "(inputfile);\n"
+                                 "\t\tnlohmann::json " << jsonInputVariable << ";" << std::endl
+                                 << inputFileName
+                                 << " >> "
+                                 << jsonInputVariable << ";" << std::endl
+                    << getParserRetrievalTextForGlobals(jsonInputVariable)
+                    << getParserRetrievalTextForArguments(jsonInputVariable, f.arguments);
 
-    auto output_var_name = "output";
+    auto output_var_name = getUniqueTmpCPPVariableNameFor("output");
     setupfilestream << "auto " << output_var_name << " = " <<  f.name << "(" << getUntypedArgumentNames(f) << ");" << std::endl;
     setupfilestream <<  getJsonOutputText(output_var_name, f.retType);
 
-    setupfilestream << "\t\t" << "std::cout << output_json << std::endl;" << std::endl;
+
 
 
     setupfilestream << "} " << std::endl;
@@ -117,7 +121,7 @@ std::string Module::getUntypedArgumentNames(Function &f) {
 }
 
 
-std::string Module::getTextForGlobals() {
+std::string Module::getGlobalDeclarationsText() {
     std::stringstream s;
     for(auto& global : globals){
         s << "extern " << global.getType()  << " " << global.getName() << ";" << std::endl;
@@ -125,39 +129,45 @@ std::string Module::getTextForGlobals() {
     return s.str();
 }
 
-std::string Module::getParserRetrievalTextForGlobals(){
+std::string Module::getParserRetrievalTextForGlobals(std::string jsonInputVariableName) {
     std::vector<NamedVariable> globals(this->globals.begin(), this->globals.end());
-    return getParserRetrievalText(globals, true);
+    return getParserRetrievalText(jsonInputVariableName, globals, true);
 }
 
-std::string Module::getParserRetrievalTextForArguments(std::vector<Argument> args){
+std::string Module::getParserRetrievalTextForArguments(std::string jsonInputVariableName, std::vector<Argument> args) {
     std::vector<NamedVariable> a(args.begin(), args.end());
 // TODO: Woudl this work?
 //        return getParserRetrievalText((std::vector<NamedVariable>&)args, false);
-    return getParserRetrievalText(a, false);
+    return getParserRetrievalText(jsonInputVariableName, a, false);
 }
 
 
-std::string Module::getParserRetrievalText(std::vector<NamedVariable> args, bool isForGlobals) {
+std::string Module::getParserRetrievalText(std::string jsonInputVariableName, std::vector<NamedVariable> args, bool isForGlobals) {
     std::stringstream s;
 
     for(auto& a : args){
         std::vector<std::string> dummy;
+        if(isForGlobals)
+            jsonInputVariableName = jsonInputVariableName + "[\"globals\"]";
+        else
+            jsonInputVariableName = jsonInputVariableName + "[\"arguments\"]";
+
         dummy.push_back(a.getName());
 
         // llvm boxes structs always with a pointer?
         if(a.type->isPointerTy() && a.type->getPointerElementType()->isStructTy())
-            s << getParserRetrievalForNamedType(dummy, a.type->getPointerElementType(), isForGlobals);
+            s << getParserRetrievalForNamedType(jsonInputVariableName, dummy, a.type->getPointerElementType(), isForGlobals);
         else{
-            s << getParserRetrievalForNamedType(dummy, a.type, isForGlobals);
+            s << getParserRetrievalForNamedType(jsonInputVariableName, dummy, a.type, isForGlobals);
         }
     }
     return s.str();
 }
 
-std::string Module::getParserRetrievalForNamedType(std::vector<std::string> prefixes, handsanitizer::Type *type,
+std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariableName, std::vector<std::string> prefixes, handsanitizer::Type *type,
                                                    bool isForGlobals) {
     std::stringstream output;
+
     // arrays only exists in types unless they are global
     if(isForGlobals && type->isArrayTy()){
         int arrSize = type->getArrayNumElements();
@@ -166,7 +176,7 @@ std::string Module::getParserRetrievalForNamedType(std::vector<std::string> pref
         output << "for(int " << iterator_name << " = 0; " << iterator_name << " < "<< arrSize << ";" << iterator_name << "++) {" << std::endl;
         std::vector<std::string> fullname(prefixes);
         fullname.push_back(iterator_name);
-        output << getParserRetrievalForNamedType(fullname, arrType, false); // we declare a new local variable so don't pass in the global flag
+        output << getParserRetrievalForNamedType(jsonInputVariableName, fullname, arrType, false); // we declare a new local variable so don't pass in the global flag
         output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << "[" << iterator_name << "] = " << joinStrings(fullname, GENERATE_FORMAT_CPP_VARIABLE) << ";" << std::endl;
         output << "}" << std::endl;
     }
@@ -178,7 +188,7 @@ std::string Module::getParserRetrievalForNamedType(std::vector<std::string> pref
         if (type->getPointerElementType()->isPointerTy()) {
             std::vector<std::string> referenced_name(prefixes);
             referenced_name.push_back(POINTER_DENOTATION);
-            output << getParserRetrievalForNamedType(referenced_name, type->getPointerElementType(), isForGlobals);
+            output << getParserRetrievalForNamedType(jsonInputVariableName, referenced_name, type->getPointerElementType(), isForGlobals);
 
             output << "\t\t";
             if (!isForGlobals)
@@ -189,8 +199,8 @@ std::string Module::getParserRetrievalForNamedType(std::vector<std::string> pref
         else { // we know ptr points to a non pointer
             handsanitizer::Type* pointeeType = type->getPointerElementType();
             std::string elTypeName = pointeeType->getCTypeName();
-            std::string arrSize =  "j" + joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING) + ".size()";
-            std::string jsonValue = "j" + joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING);
+            std::string arrSize =  jsonInputVariableName + joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING) + ".size()";
+            std::string jsonValue = jsonInputVariableName + joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING);
             //declare var, as we recurse it must always be an extra definition
             output << elTypeName << "* " << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << ";" << std::endl;
 
@@ -334,7 +344,7 @@ std::string Module::getParserRetrievalForNamedType(std::vector<std::string> pref
         }
         //declare lvalue
         output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE);
-        output << " = j" << joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING) << ".get<" << type->getCTypeName() << ">();";
+        output << " = " << jsonInputVariableName << joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING) << ".get<" << type->getCTypeName() << ">();";
         output << std::endl;
     }
 
@@ -348,7 +358,7 @@ std::string Module::getParserRetrievalForNamedType(std::vector<std::string> pref
             if(member.getType()->isArrayTy() == false){
                 std::vector<std::string> fullMemberName(prefixes);
                 fullMemberName.push_back(member.getName());
-                output << getParserRetrievalForNamedType(fullMemberName, member.getType(), false);
+                output << getParserRetrievalForNamedType(jsonInputVariableName,fullMemberName, member.getType(), false);
             }
         }
         output << "\t";
@@ -379,7 +389,7 @@ std::string Module::getParserRetrievalForNamedType(std::vector<std::string> pref
                 std::vector<std::string> fullMemberName(prefixes);
                 fullMemberName.push_back(member.getName());
                 fullMemberName.push_back(iterator_name);
-                output << getParserRetrievalForNamedType(fullMemberName, arrType, false);
+                output << getParserRetrievalForNamedType(jsonInputVariableName, fullMemberName, arrType, false);
                 output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << "." << member.getName() << "[" <<  iterator_name << "] = " << joinStrings(fullMemberName, GENERATE_FORMAT_CPP_VARIABLE) << ";" << std::endl;
                 output << "}" << std::endl;
             }
@@ -417,7 +427,9 @@ std::string Module::getParserRetrievalForNamedType(std::vector<std::string> pref
             "judy",
             "levi",
             "micheal",
-            "panda",
+            "panda", // hi my name is
+            "slim",
+            "shady",
             "vera",
             "victor",
             "ted",
@@ -483,12 +495,25 @@ std::string Module::getParserRetrievalForNamedType(std::vector<std::string> pref
 
         std::stringstream output;
         output << "{" << std::endl;
+        output << "\"globals\": {" << std::endl;
+            for(auto& arg: this->globals){
+                output << "\"" << arg.getName() << "\"" << ": " << getJsonInputTemplateTextForJsonRvalue(*arg.getType());
+                if (arg.getName() != f.arguments.back().getName()){
+                    output << "," << std::endl;
+                }
+            }
+
+        output << "}," << std::endl;
+
+        output << "\"arguments\": {" << std::endl;
         for(auto& arg: f.arguments){
             output << "\"" << arg.getName() << "\"" << ": " << getJsonInputTemplateTextForJsonRvalue(*arg.getType());
             if (arg.getName() != f.arguments.back().getName()){
                 output << "," << std::endl;
             }
         }
+        output << "}," << std::endl;
+
         output << "}" << std::endl;
         of << output.str();
         of.close();
@@ -525,7 +550,22 @@ std::string Module::getParserRetrievalForNamedType(std::vector<std::string> pref
         std::vector<std::string> prefixes;
         prefixes.push_back(output_var_name);
         s << getJsonOutputForType(jsonVarName, prefixes, retType);
+        s << "std::cout << " << jsonVarName << " << std::endl;" << std::endl;
         return s.str();
+    }
+
+    void Module::generate_json_module_specification(std::string dest_file_path) {
+        std::ofstream of;
+        of.open(dest_file_path, std::ofstream::out | std::ofstream::trunc);
+
+        std::stringstream output;
+        output << "{" << std::endl;
+//        output << "bitcode_module" <<
+//        output << "globals: " <<
+
+        output << "}" << std::endl;
+        of << output.str();
+        of.close();
     }
 
 }

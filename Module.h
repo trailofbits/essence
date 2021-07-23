@@ -19,7 +19,7 @@ namespace handsanitizer{
         void generate_cpp_file_for_function(Function& f, std::string dest_file_path);
         void generate_json_input_template_file(Function& f, std::string dest_file_path);
 
-
+        void generate_json_module_specification(std::string dest_file_path);
 
     private:
         std::vector<std::string> definedNamesForFunctionBeingGenerated;
@@ -29,16 +29,18 @@ namespace handsanitizer{
 
         bool isNameDefined(std::string name);
         std::string getRandomDummyVariableName();
-        std::string getTextForGlobals();
+        std::string getGlobalDeclarationsText();
         std::string getTypedArgumentNames(Function &f);
         std::string getUntypedArgumentNames(Function &f);
-        std::string getParserRetrievalText(std::vector<handsanitizer::NamedVariable> args, bool isForGlobals = false);
-        std::string getParserRetrievalForNamedType(std::vector<std::string> prefixes, handsanitizer::Type* type, bool isForGlobals = false);
-        std::string getParserRetrievalTextForArguments(std::vector<Argument> args);
-        std::string getParserRetrievalTextForGlobals();
+        std::string getParserRetrievalText(std::string jsonInputVariableName, std::vector<handsanitizer::NamedVariable> args, bool isForGlobals = false);
+        std::string getParserRetrievalForNamedType(std::string jsonInputVariableName, std::vector<std::string> prefixes, handsanitizer::Type* type, bool isForGlobals = false);
+        std::string getParserRetrievalTextForArguments(std::string jsonInputVariableName, std::vector<Argument> args);
+        std::string getParserRetrievalTextForGlobals(std::string jsonInputVariableName);
 
         std::string getJsonOutputText(std::string output_var_name, handsanitizer::Type* retType);
         std::string getJsonOutputForType(std::string json_name, std::vector<std::string> prefixes, handsanitizer::Type* type);
+
+        std::string getUnrolledTypeAsJson(Type* type);
     };
 }
 

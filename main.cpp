@@ -461,6 +461,7 @@ int main(int argc, char** argv){
             if(!std::filesystem::exists(OUTPUT_DIR))
                 std::filesystem::create_directory(OUTPUT_DIR);
 
+
             std::cout << "generating for f" << std::endl;
             extractedMod.generate_cpp_file_for_function(f, OUTPUT_DIR + "/" + f.name + ".cpp");
             extractedMod.generate_json_input_template_file(f, OUTPUT_DIR + "/" + f.name + ".json");
