@@ -109,6 +109,7 @@ namespace handsanitizer {
         Purity purity;
         std::string getFunctionSignature();
 
+        std::string getPurityName();
 
     private:
         std::string getTypedArgumentNames();

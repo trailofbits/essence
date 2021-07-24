@@ -578,24 +578,25 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
         }
 
         output << "}," << std::endl;
-        output << "\"functions\": {" << std::endl;
+        output << "\"functions\": [" << std::endl;
         for(auto& f: this->functions){
+            output << "{";
             output << "\"name\": \"" <<  f.name << "\"," << std::endl;
             output << "\"signature\": \"" <<  f.getFunctionSignature() << "\"," << std::endl;
+            output << "\"purity\": \"" <<  f.getPurityName() << "\"," << std::endl;
             output << "\"arguments\": [" << std::endl;
             for(auto& a : f.arguments){
                 output << "{\"" << a.getName() << "\"" << ": " << getUnrolledTypeAsJson(*a.getType()) << "}";
                 if(a.getName() != f.arguments.back().name)
                     output << ",";
             }
-
+            output << "]}";
             if(f.name != this->functions.back().name)
                 output << ",";
-            output << "]" << std::endl;
-        }
 
-        output << "}" << std::endl;
-        output << "}" << std::endl;
+        }
+        output << "]" << std::endl; // many possible functions
+        output << "}" << std::endl; // module
 
 
         of << std::setw(4) <<output.str();

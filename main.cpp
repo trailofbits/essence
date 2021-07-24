@@ -90,8 +90,6 @@ int main(int argc, char** argv){
     std::string inputFilename = program.get("bitcodeFile");
     std::unique_ptr<llvm::MemoryBuffer> MB = ExitOnErr(errorOrToExpected(llvm::MemoryBuffer::getFileOrSTDIN(inputFilename)));
     llvm::BitcodeFileContents IF = ExitOnErr(llvm::getBitcodeFileContents(*MB));
-    std::cout << "Bitcode file contains this many modules " << IF.Mods.size() << std::endl;
-
 
     std::string output_dir = program.get<std::string>("-o");
     if(!std::filesystem::exists(output_dir))
@@ -100,35 +98,40 @@ int main(int argc, char** argv){
 
 
     handsanitizer::ModuleFromLLVMModuleFactory factory;
-    int mod_counter = 1;
+
     for(auto& llvm_mod : IF.Mods){
 
         std::unique_ptr<llvm::Module> mod = ExitOnErr(llvm_mod.parseModule(Context));
         auto extractedMod = factory.ExtractModule(Context, mod);
         if(genSpecification){
-            std::cout << "mod json " << std::endl;
 
-            extractedMod.generate_json_module_specification(output_dir + "/mod" + std::to_string(mod_counter) + ".json");
+
+            std::filesystem::path p(inputFilename);
+            p.replace_extension("");
+            auto newFileName = p.filename().string();
+            auto outputPath = std::filesystem::path();
+            outputPath.append(output_dir);
+            outputPath.append(newFileName);
+            outputPath.replace_extension("spec");
+            auto outputModFilename = outputPath.string();
+
+            extractedMod.generate_json_module_specification(outputModFilename);
         }
         else{
-            std::cout << "Applying to mod " << std::endl;
             auto functions = program.get<std::vector<std::string>>("functions");
 
             for(auto& f : extractedMod.functions){
                 if(functions.size() > 0){
-                    if(std::find(functions.begin(), functions.end(), f.name) != functions.end())
+                    if(std::find(functions.begin(), functions.end(), f.name) == functions.end()){
                         continue; // if functions are specified we only output those, otherwise output all funcs
+                    }
                 }
 
-
-
-                std::cout << "generating for f" << std::endl;
+                std::cout << "generating executable for function: " << f.name << std::endl;
                 extractedMod.generate_cpp_file_for_function(f, output_dir + "/" + f.name + ".cpp");
                 extractedMod.generate_json_input_template_file(f, output_dir + "/" + f.name + ".json");
-
             }
         }
-        mod_counter++;
     }
     return 0;
 }

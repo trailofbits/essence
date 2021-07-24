@@ -84,7 +84,7 @@ namespace handsanitizer {
             Type *retType = ConvertLLVMTypeToHandsanitizerType(&mod, f.getReturnType());
             Purity p = this->getPurityOfFunction(f);
 
-            std::cout << "extracted func " <<  fname << std::endl;
+
             Function extracted_f(fname, retType, args_of_func, p);
             funcs.push_back(extracted_f);
         }
@@ -141,6 +141,15 @@ namespace handsanitizer {
             retstring.pop_back();
         }
         return retstring;
+    }
+
+    std::string Function::getPurityName() {
+        if(this->purity == Purity::IMPURE)
+            return "impure";
+        else if(this->purity == Purity::READ_NONE)
+            return "read_none";
+        else
+            return "write_only";
     }
 
     Type *ModuleFromLLVMModuleFactory::ConvertLLVMTypeToHandsanitizerType(Module *module, llvm::Type *type) {
