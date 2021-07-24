@@ -34,8 +34,6 @@ enum StringJoiningFormat{
 extern std::string CPP_ADDRESSING_DELIMITER;
 extern std::string LVALUE_DELIMITER;
 extern std::string POINTER_DENOTATION;
-extern std::string JSON_INPUT_FILE_VARIABLE;
-extern std::string JSON_OUTPUT_FILE_VARIABLE;
 
 
 std::string joinStrings(std::vector<std::string> path, StringJoiningFormat format);
@@ -43,8 +41,6 @@ std::string joinStrings(std::vector<std::string> path, StringJoiningFormat forma
 
 // do we want special names for special root level var names?
 
-std::string getInputJson();
-std::string getOutputJson();
 
 
 
@@ -73,6 +69,5 @@ void defineIfNeeded(llvm::Type& arg, bool isRetType = false);
 
 // Unions get translated to structs in LLVM so this should also cover that
 
-std::string getJsonOutputText(std::string output_var_name, handsanitizer::Type* retType);
 #endif //HANDSANITIZER_NAME_GENERATION_HPP
 

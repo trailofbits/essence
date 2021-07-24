@@ -13,11 +13,15 @@ std::string getNameForStructMember(int index) {
 }
 
 namespace handsanitizer {
-
     Module
     ModuleFromLLVMModuleFactory::ExtractModule(llvm::LLVMContext &context, std::unique_ptr<llvm::Module> const &mod) {
         Module handsan_mod;
 
+        //TODO set this to input name?
+        if(mod->getName() != "")
+            handsan_mod.name = mod->getName();
+        else
+            handsan_mod.name = "extracted_module";
         handsan_mod.globals = this->ExtractGlobalVariables(handsan_mod, mod);
         handsan_mod.functions = this->ExtractFunctions(handsan_mod, mod);
         std::vector<Type *> user_types;
@@ -108,8 +112,11 @@ namespace handsanitizer {
             if (!global.getType()->isFunctionTy() &&
                 !(global.getType()->isPointerTy() && global.getType()->getPointerElementType()->isFunctionTy()) &&
                 global.isDSOLocal()) {
+
+                // globals are always pointers in llvm
+                auto globalType = this->ConvertLLVMTypeToHandsanitizerType(&hand_mod, global.getType()->getPointerElementType());
                 GlobalVariable globalVariable(global.getName(),
-                                              this->ConvertLLVMTypeToHandsanitizerType(&hand_mod, global.getType()));
+                                              globalType);
                 globals.push_back(globalVariable);
             }
         }
@@ -233,5 +240,30 @@ namespace handsanitizer {
             throw std::invalid_argument("Arrays can't have their names expressed like this");
 
         return "Not supported";
+    }
+
+    std::string Type::getTypeName() {
+        if(this->isVoidTy())
+            return "void";
+        else if(this->isPointerTy())
+            return "pointer";
+
+        else if(this->isIntegerTy())
+            return "integer";
+
+        else if(this->isFloatTy())
+            return "float";
+
+        else if(this->isDoubleTy())
+            return "double";
+
+        else if(this->isStructTy())
+            return "struct";
+
+        else if(this->isArrayTy())
+            return "array";
+
+        else
+            return "not_supported";
     }
 }

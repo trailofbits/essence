@@ -22,9 +22,9 @@ namespace handsanitizer{
         std::vector<GlobalVariable> ExtractGlobalVariables(Module& mod,std::unique_ptr<llvm::Module> const& llvm_mod);
         std::vector<Argument> ExtractArguments(Module& mod, llvm::Function& llvm_mod);
         Type* ConvertLLVMTypeToHandsanitizerType(Module* module, llvm::Type* type);
-        bool functionHasCABI(llvm::Function& f);
 
 
+        bool functionHasCABI(llvm::Function &f);
         std::vector<std::pair<Type*, llvm::Type*>> user_defined_types;
 
         bool hasStructDefined(Module& mod, llvm::Type* type);

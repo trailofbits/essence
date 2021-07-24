@@ -4,17 +4,12 @@
 
 #include "include/name_generation.hpp"
 
-std::string getInputJson(){ return JSON_INPUT_FILE_VARIABLE; }
-std::string getOutputJson(){ return JSON_OUTPUT_FILE_VARIABLE; }
-
 
 
 
 std::string CPP_ADDRESSING_DELIMITER = ".";
 std::string LVALUE_DELIMITER = "_";
 std::string POINTER_DENOTATION = "__p";
-std::string JSON_INPUT_FILE_VARIABLE = "j";
-std::string JSON_OUTPUT_FILE_VARIABLE = "output_json";
 
 
 int iterator_names_used = 0;

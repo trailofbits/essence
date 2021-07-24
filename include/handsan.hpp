@@ -23,6 +23,7 @@ namespace handsanitizer {
     class Type {
     public:
         std::string getCTypeName();
+        std::string getTypeName();
 
         Type(TYPE_NAMES typeName) : type(typeName){};
         Type(TYPE_NAMES typeName, unsigned int const intSize): type(typeName), integerSize(intSize){};
@@ -33,7 +34,9 @@ namespace handsanitizer {
 
         // scalar values
         bool isVoidTy() { return type == TYPE_NAMES::VOID;};
-        bool isIntegerTy(int size = 32) { return type == TYPE_NAMES::INTEGER && integerSize == size;};
+        bool isIntegerTy() { return type == TYPE_NAMES::INTEGER;};
+        bool isIntegerTy(int size) { return type == TYPE_NAMES::INTEGER && integerSize == size;};
+        int getBitWidth(){ return integerSize;};
         bool isFloatTy() { return type == TYPE_NAMES::FLOAT;};
         bool isDoubleTy() { return type == TYPE_NAMES::DOUBLE;};
 
@@ -50,6 +53,7 @@ namespace handsanitizer {
         bool isStructTy() { return type == TYPE_NAMES::STRUCT;};
         bool isUnion() { return structIsUnion;};
         std::vector<NamedVariable> getNamedMembers() { return structMembers;};
+
 
     private:
         TYPE_NAMES type;

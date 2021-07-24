@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <sstream>
 #include <fstream>
+#include <iomanip>
 #include "Module.h"
 #include "include/name_generation.hpp"
 #include "include/code_generation.hpp"
@@ -13,9 +14,10 @@ void Module::generate_cpp_file_for_function(Function &f, std::string dest_file_p
     this->definedNamesForFunctionBeingGenerated.clear();
     std::stringstream setupfilestream;
 
-    // INCLUDES HEADERS
     setupfilestream << "#include \"skelmain.hpp\" " << std::endl;
     setupfilestream << "#include <cstdint>" << std::endl;
+    setupfilestream << "#include <iomanip>" << std::endl;
+
     setupfilestream << "#include <nlohmann/json.hpp> // header only lib" << std::endl << std::endl;
 
 
@@ -54,7 +56,9 @@ void Module::generate_cpp_file_for_function(Function &f, std::string dest_file_p
                     << getParserRetrievalTextForArguments(jsonInputVariable, f.arguments);
 
     auto output_var_name = getUniqueTmpCPPVariableNameFor("output");
-    setupfilestream << "auto " << output_var_name << " = " <<  f.name << "(" << getUntypedArgumentNames(f) << ");" << std::endl;
+    if(f.retType->isVoidTy() == false)
+        setupfilestream << "auto " << output_var_name << " = ";
+    setupfilestream <<  f.name << "(" << getUntypedArgumentNames(f) << ");" << std::endl;
     setupfilestream <<  getJsonOutputText(output_var_name, f.retType);
 
 
@@ -123,14 +127,16 @@ std::string Module::getUntypedArgumentNames(Function &f) {
 
 std::string Module::getGlobalDeclarationsText() {
     std::stringstream s;
-    for(auto& global : globals){
-        s << "extern " << global.getType()  << " " << global.getName() << ";" << std::endl;
+    for(auto& global : this->globals){
+        s << "extern " << global.getType()->getCTypeName()  << " " << global.getName() << ";" << std::endl;
     }
     return s.str();
 }
 
 std::string Module::getParserRetrievalTextForGlobals(std::string jsonInputVariableName) {
     std::vector<NamedVariable> globals(this->globals.begin(), this->globals.end());
+    jsonInputVariableName = jsonInputVariableName + "[\"globals\"]";
+
     return getParserRetrievalText(jsonInputVariableName, globals, true);
 }
 
@@ -138,6 +144,7 @@ std::string Module::getParserRetrievalTextForArguments(std::string jsonInputVari
     std::vector<NamedVariable> a(args.begin(), args.end());
 // TODO: Woudl this work?
 //        return getParserRetrievalText((std::vector<NamedVariable>&)args, false);
+    jsonInputVariableName = jsonInputVariableName + "[\"arguments\"]";
     return getParserRetrievalText(jsonInputVariableName, a, false);
 }
 
@@ -147,11 +154,6 @@ std::string Module::getParserRetrievalText(std::string jsonInputVariableName, st
 
     for(auto& a : args){
         std::vector<std::string> dummy;
-        if(isForGlobals)
-            jsonInputVariableName = jsonInputVariableName + "[\"globals\"]";
-        else
-            jsonInputVariableName = jsonInputVariableName + "[\"arguments\"]";
-
         dummy.push_back(a.getName());
 
         // llvm boxes structs always with a pointer?
@@ -490,7 +492,7 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
     }
 
     void Module::generate_json_input_template_file(Function &f, std::string dest_file_path) {
-        std::ofstream of;
+        std::ofstream of ;
         of.open(dest_file_path, std::ofstream::out | std::ofstream::trunc);
 
         std::stringstream output;
@@ -512,20 +514,27 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
                 output << "," << std::endl;
             }
         }
-        output << "}," << std::endl;
+        output << "}" << std::endl;
 
         output << "}" << std::endl;
-        of << output.str();
+        of << std::setw(4) << output.str() << std::endl;
         of.close();
     }
 
 
-    std::string Module::getJsonOutputForType(std::string json_name, std::vector<std::string> prefixes, handsanitizer::Type* type){
+    std::string Module::getJsonOutputForType(std::string json_name, std::vector<std::string> prefixes, Type* type){
         std::stringstream s;
+
         if(type->isPointerTy()){
-            //TODO: Should this be casted to anything to ensure proper output format?
+//            //TODO: Should this be casted to anything to ensure proper output format?
+//            // should do this for the longest pointer type
+//            s << "if(sizeof(" << type->getCTypeName() << ") == 4) " << std::endl;
+//            s << json_name << joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING)
+//              << " = (uint32_t)" << joinStrings(prefixes, GENERATE_FORMAT_CPP_ADDRESSING) << ";" << std::endl;
+
+//            s << "if(sizeof(" << type->getCTypeName() << ") == 8) " << std::endl;
             s << json_name << joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING)
-              << " = " << joinStrings(prefixes, GENERATE_FORMAT_CPP_ADDRESSING) << ";" << std::endl;
+              << " = (uint64_t)" << joinStrings(prefixes, GENERATE_FORMAT_CPP_ADDRESSING) << ";" << std::endl;
         }
         else if(type->isStructTy()){
             for(auto& mem : type->getNamedMembers()){
@@ -548,9 +557,20 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
         auto jsonVarName = getUniqueTmpCPPVariableNameFor("output_json");
         s << "nlohmann::json " <<  jsonVarName  << ";" << std::endl;
         std::vector<std::string> prefixes;
+        for(auto& global : this->globals){
+            prefixes.clear();
+            prefixes.push_back(global.getName());
+            s << getJsonOutputForType(jsonVarName + "[\"globals\"]", prefixes, global.getType());
+        }
+
+        prefixes.clear();
         prefixes.push_back(output_var_name);
-        s << getJsonOutputForType(jsonVarName, prefixes, retType);
-        s << "std::cout << " << jsonVarName << " << std::endl;" << std::endl;
+        if(retType->isVoidTy() == false)
+            s << getJsonOutputForType(jsonVarName, prefixes, retType);
+
+
+
+        s << "std::cout << std::setw(4) << " << jsonVarName << " << std::endl;" << std::endl;
         return s.str();
     }
 
@@ -560,12 +580,68 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
 
         std::stringstream output;
         output << "{" << std::endl;
-//        output << "bitcode_module" <<
-//        output << "globals: " <<
+        output << "bitcode_module: \"" << this->name << "\","  << std::endl;
+        output << "globals: {" << std::endl;
+        for(auto& g : this->globals){
+            output << "\"" << g.getName() << "\"" << ": " << getUnrolledTypeAsJson(*g.getType());
+            if(g.getName() != this->globals.back().name)
+                output << ",";
+        }
+
+        output << "}," << std::endl;
+        output << "functions: {" << std::endl;
+        for(auto& f: this->functions){
+            output << "name: \"" <<  f.name << "\"," << std::endl;
+            output << "arguments: {" << std::endl;
+            for(auto& a : f.arguments){
+                output << "\"" << a.getName() << "\"" << ": " << getUnrolledTypeAsJson(*a.getType());
+                if(a.getName() != f.arguments.back().name)
+                    output << ",";
+            }
+
+            if(f.name != this->functions.back().name)
+                output << ",";
+            output << "}" << std::endl;
+        }
 
         output << "}" << std::endl;
-        of << output.str();
+        output << "}" << std::endl;
+
+
+        of << std::setw(4) <<output.str();
         of.close();
+    }
+
+    std::string Module::getUnrolledTypeAsJson(Type& type) {
+        std::stringstream output;
+        output << "{" << std::endl;
+        output << "type: \"" << type.getTypeName() << "\"";
+        if(type.isVoidTy()){
+            // do nothing
+        }
+
+        if(type.isPointerTy())
+            output << ", pointerElementType: " << getUnrolledTypeAsJson(*type.getPointerElementType());
+
+        if(type.isIntegerTy())
+            output << ", bitWidth: " << type.getBitWidth();
+
+        if(type.isStructTy()){
+            output << ", structName: " << type.getCTypeName() << ", structMembers: [" ;
+            for(auto& member : type.getNamedMembers()){
+                output << "\"" << member.getName() << "\"" << ": " << getUnrolledTypeAsJson(*member.getType());
+                if(member.getName() != type.getNamedMembers().back().name)
+                    output << ",";
+            }
+            output << "]";
+        }
+        if(type.isArrayTy()){
+            output << ", getArrayNumElements: " << type.getArrayNumElements() << ", arrayElementType:" << getUnrolledTypeAsJson(*type.getArrayElementType());
+        }
+
+        output << "}" << std::endl;
+
+        return output.str();
     }
 
 }

@@ -8,6 +8,7 @@ namespace handsanitizer{
     public:
         // we assume that the types here are ordered such that a single never has a dependcy before it
         // and that it is complete, i.e no member of a type defined here is not defined by it self (excluding native types)
+        std::string name;
         std::vector<Type*> user_defined_types;
         std::vector<GlobalVariable> globals;
         std::vector<Function> functions;
@@ -40,7 +41,7 @@ namespace handsanitizer{
         std::string getJsonOutputText(std::string output_var_name, handsanitizer::Type* retType);
         std::string getJsonOutputForType(std::string json_name, std::vector<std::string> prefixes, handsanitizer::Type* type);
 
-        std::string getUnrolledTypeAsJson(Type* type);
+        std::string getUnrolledTypeAsJson(Type& type);
     };
 }
 
