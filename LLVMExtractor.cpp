@@ -126,6 +126,23 @@ namespace handsanitizer {
     Function::Function(const std::string &name, Type *retType, std::vector<Argument> arguments, Purity purity)
             : name(name), retType(retType), arguments(arguments), purity(purity) {}
 
+    std::string Function::getFunctionSignature() {
+        return this->retType->getCTypeName() + " " + this->name + "(" + this->getTypedArgumentNames() + ");";
+    }
+
+    std::string Function::getTypedArgumentNames() {
+        std::stringstream output;
+        for(auto& args : this->arguments){
+            output << args.getType()->getCTypeName() << " " << args.getName() << ", ";
+        }
+        auto retstring = output.str();
+        if(!retstring.empty()){
+            retstring.pop_back(); //remove last ,<space>
+            retstring.pop_back();
+        }
+        return retstring;
+    }
+
     Type *ModuleFromLLVMModuleFactory::ConvertLLVMTypeToHandsanitizerType(Module *module, llvm::Type *type) {
         Type *newType = nullptr;
         if (type->isVoidTy())

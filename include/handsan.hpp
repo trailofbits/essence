@@ -107,6 +107,11 @@ namespace handsanitizer {
         Type *retType;
         std::vector<Argument> arguments; // implicitly ordered
         Purity purity;
+        std::string getFunctionSignature();
+
+
+    private:
+        std::string getTypedArgumentNames();
     };
 }
 

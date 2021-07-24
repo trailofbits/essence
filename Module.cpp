@@ -27,7 +27,7 @@ void Module::generate_cpp_file_for_function(Function &f, std::string dest_file_p
 
     // DECLARATION TEST FUNCTION
     // the LLVM type name differs from how we define it in our generated source code
-    std::string functionSignature = f.retType->getCTypeName() + " " + f.name + "(" + getTypedArgumentNames(f) + ");";
+    std::string functionSignature = f.getFunctionSignature();
     setupfilestream << "extern \"C\" " + functionSignature << std::endl;
 
     // DECLARE GLOBALS
@@ -100,17 +100,6 @@ std::string Module::getTextForUserDefinedType(Type * type) {
     return output.str();
 }
 
-std::string Module::getTypedArgumentNames(Function &f) {
-    std::stringstream output;
-    for(auto& args : f.arguments){
-        output << args.getType()->getCTypeName() << " " << args.getName() << ",";
-    }
-    auto retstring = output.str();
-    if(!retstring.empty())
-        retstring.pop_back(); //remove last ,
-
-    return retstring;
-}
 
 std::string Module::getUntypedArgumentNames(Function &f) {
     std::stringstream output;
@@ -580,8 +569,8 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
 
         std::stringstream output;
         output << "{" << std::endl;
-        output << "bitcode_module: \"" << this->name << "\","  << std::endl;
-        output << "globals: {" << std::endl;
+        output << "\"bitcode_module\": \"" << this->name << "\","  << std::endl;
+        output << "\"globals\": {" << std::endl;
         for(auto& g : this->globals){
             output << "\"" << g.getName() << "\"" << ": " << getUnrolledTypeAsJson(*g.getType());
             if(g.getName() != this->globals.back().name)
@@ -589,19 +578,20 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
         }
 
         output << "}," << std::endl;
-        output << "functions: {" << std::endl;
+        output << "\"functions\": {" << std::endl;
         for(auto& f: this->functions){
-            output << "name: \"" <<  f.name << "\"," << std::endl;
-            output << "arguments: {" << std::endl;
+            output << "\"name\": \"" <<  f.name << "\"," << std::endl;
+            output << "\"signature\": \"" <<  f.getFunctionSignature() << "\"," << std::endl;
+            output << "\"arguments\": [" << std::endl;
             for(auto& a : f.arguments){
-                output << "\"" << a.getName() << "\"" << ": " << getUnrolledTypeAsJson(*a.getType());
+                output << "{\"" << a.getName() << "\"" << ": " << getUnrolledTypeAsJson(*a.getType()) << "}";
                 if(a.getName() != f.arguments.back().name)
                     output << ",";
             }
 
             if(f.name != this->functions.back().name)
                 output << ",";
-            output << "}" << std::endl;
+            output << "]" << std::endl;
         }
 
         output << "}" << std::endl;
@@ -615,19 +605,19 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
     std::string Module::getUnrolledTypeAsJson(Type& type) {
         std::stringstream output;
         output << "{" << std::endl;
-        output << "type: \"" << type.getTypeName() << "\"";
+        output << "\"type\": \"" << type.getTypeName() << "\"";
         if(type.isVoidTy()){
             // do nothing
         }
 
         if(type.isPointerTy())
-            output << ", pointerElementType: " << getUnrolledTypeAsJson(*type.getPointerElementType());
+            output << ", \"pointerElementType\": " << getUnrolledTypeAsJson(*type.getPointerElementType());
 
         if(type.isIntegerTy())
-            output << ", bitWidth: " << type.getBitWidth();
+            output << ", \"bitWidth\": " << type.getBitWidth();
 
         if(type.isStructTy()){
-            output << ", structName: " << type.getCTypeName() << ", structMembers: [" ;
+            output << ", \"structName\": " << type.getCTypeName() << ", \"structMembers\": [" ;
             for(auto& member : type.getNamedMembers()){
                 output << "\"" << member.getName() << "\"" << ": " << getUnrolledTypeAsJson(*member.getType());
                 if(member.getName() != type.getNamedMembers().back().name)
@@ -636,7 +626,7 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
             output << "]";
         }
         if(type.isArrayTy()){
-            output << ", getArrayNumElements: " << type.getArrayNumElements() << ", arrayElementType:" << getUnrolledTypeAsJson(*type.getArrayElementType());
+            output << ", \"getArrayNumElements\": " << type.getArrayNumElements() << ", \"arrayElementType\":" << getUnrolledTypeAsJson(*type.getArrayElementType());
         }
 
         output << "}" << std::endl;

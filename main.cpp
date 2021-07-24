@@ -54,42 +54,81 @@
 #include "include/code_generation.hpp"
 #include "include/handsan.hpp"
 #include "LLVMExtractor.hpp"
-
+#include <argparse/argparse.hpp>
 
 static llvm::ExitOnError ExitOnErr;
-
-static llvm::cl::opt<std::string>
-        InputFilename(llvm::cl::Positional, llvm::cl::desc("<input bitcode>"), llvm::cl::init("-"));
+//
+//static llvm::cl::opt<std::string>
+//        InputFilename(llvm::cl::Positional, llvm::cl::desc("<input bitcode>"), llvm::cl::init("-"));
 
 
 int main(int argc, char** argv){
+
+    argparse::ArgumentParser program("handsanitizer", "0.1.0");
+    program.add_argument("bitcodeFile");
+    program.add_argument("-o", "--output-directory").default_value(std::string("output")); // parameter packing
+    program.add_argument("-g", "--generate-specifications").default_value(false).implicit_value(true); // parameter packing
+    program.add_argument("functions").remaining();
+
+    try {
+        program.parse_args(argc, argv);
+    }
+    catch (const std::runtime_error& err) {
+        std::cout << err.what() << std::endl;
+        std::cout << program;
+        exit(0);
+    }
+
+
+
     // parse llvm and open module
     llvm::InitLLVM X(argc, argv);
     ExitOnErr.setBanner(std::string(argv[0]) + ": error: ");
     llvm::LLVMContext Context;
-    llvm::cl::ParseCommandLineOptions(argc, argv, "llvm .bc -> .ll disassembler\n");
-    std::unique_ptr<llvm::MemoryBuffer> MB = ExitOnErr(errorOrToExpected(llvm::MemoryBuffer::getFileOrSTDIN(InputFilename)));
+//    llvm::cl::ParseCommandLineOptions(argc, argv, "llvm .bc -> .ll disassembler\n");
+
+    std::string inputFilename = program.get("bitcodeFile");
+    std::unique_ptr<llvm::MemoryBuffer> MB = ExitOnErr(errorOrToExpected(llvm::MemoryBuffer::getFileOrSTDIN(inputFilename)));
     llvm::BitcodeFileContents IF = ExitOnErr(llvm::getBitcodeFileContents(*MB));
     std::cout << "Bitcode file contains this many modules " << IF.Mods.size() << std::endl;
 
+
+    std::string output_dir = program.get<std::string>("-o");
+    if(!std::filesystem::exists(output_dir))
+        std::filesystem::create_directory(output_dir);
+    bool genSpecification = program.get<bool>("-g");
+
+
     handsanitizer::ModuleFromLLVMModuleFactory factory;
+    int mod_counter = 1;
     for(auto& llvm_mod : IF.Mods){
+
         std::unique_ptr<llvm::Module> mod = ExitOnErr(llvm_mod.parseModule(Context));
         auto extractedMod = factory.ExtractModule(Context, mod);
+        if(genSpecification){
+            std::cout << "mod json " << std::endl;
 
-
-        std::cout << "Applying to mod " << std::endl;
-        for(auto& f : extractedMod.functions){
-            // TODO: use proper filesystem apis for filenames
-            if(!std::filesystem::exists(OUTPUT_DIR))
-                std::filesystem::create_directory(OUTPUT_DIR);
-
-
-            std::cout << "generating for f" << std::endl;
-            extractedMod.generate_cpp_file_for_function(f, OUTPUT_DIR + "/" + f.name + ".cpp");
-            extractedMod.generate_json_input_template_file(f, OUTPUT_DIR + "/" + f.name + ".json");
-            extractedMod.generate_json_module_specification(OUTPUT_DIR+ "/" + "mod.json");
-
+            extractedMod.generate_json_module_specification(output_dir + "/mod" + std::to_string(mod_counter) + ".json");
         }
+        else{
+            std::cout << "Applying to mod " << std::endl;
+            auto functions = program.get<std::vector<std::string>>("functions");
+
+            for(auto& f : extractedMod.functions){
+                if(functions.size() > 0){
+                    if(std::find(functions.begin(), functions.end(), f.name) != functions.end())
+                        continue; // if functions are specified we only output those, otherwise output all funcs
+                }
+
+
+
+                std::cout << "generating for f" << std::endl;
+                extractedMod.generate_cpp_file_for_function(f, output_dir + "/" + f.name + ".cpp");
+                extractedMod.generate_json_input_template_file(f, output_dir + "/" + f.name + ".json");
+
+            }
+        }
+        mod_counter++;
     }
+    return 0;
 }
