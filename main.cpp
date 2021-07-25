@@ -66,6 +66,7 @@ int main(int argc, char** argv){
 
     argparse::ArgumentParser program("handsanitizer", "0.1.0");
     program.add_argument("bitcodeFile");
+    program.add_argument("--no-template").default_value(false).implicit_value(true); // parameter packing
     program.add_argument("-o", "--output-directory").default_value(std::string("output")); // parameter packing
     program.add_argument("-g", "--generate-specifications").default_value(false).implicit_value(true); // parameter packing
     program.add_argument("functions").remaining();
@@ -95,6 +96,7 @@ int main(int argc, char** argv){
     if(!std::filesystem::exists(output_dir))
         std::filesystem::create_directory(output_dir);
     bool genSpecification = program.get<bool>("-g");
+    bool skipInputTemplate = program.get<bool>("--no-template");
 
 
     handsanitizer::ModuleFromLLVMModuleFactory factory;
@@ -127,9 +129,9 @@ int main(int argc, char** argv){
                     }
                 }
 
-                std::cout << "generating executable for function: " << f.name << std::endl;
                 extractedMod.generate_cpp_file_for_function(f, output_dir + "/" + f.name + ".cpp");
-                extractedMod.generate_json_input_template_file(f, output_dir + "/" + f.name + ".json");
+                if(!skipInputTemplate)
+                    extractedMod.generate_json_input_template_file(f, output_dir + "/" + f.name + ".json");
             }
         }
     }
