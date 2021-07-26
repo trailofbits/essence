@@ -89,7 +89,8 @@ namespace handsanitizer {
 
     struct Argument : NamedVariable {
     public:
-        Argument(std::string name, Type* type, bool isPassByValue) : NamedVariable(name, type), isPasByValue(isPassByValue){};
+        Argument(std::string name, Type* type, bool isPassByValue, bool isSRet) : NamedVariable(name, type), isPasByValue(isPassByValue), isSRet(isSRet){};
+        bool isSRet;
         bool isPasByValue;
     };
 

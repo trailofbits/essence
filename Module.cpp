@@ -125,7 +125,6 @@ std::string Module::getGlobalDeclarationsText() {
 std::string Module::getParserRetrievalTextForGlobals(std::string jsonInputVariableName) {
     std::vector<NamedVariable> globals(this->globals.begin(), this->globals.end());
     jsonInputVariableName = jsonInputVariableName + "[\"globals\"]";
-
     return getParserRetrievalText(jsonInputVariableName, globals, true);
 }
 
@@ -314,16 +313,12 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
                 output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = " << output_buffer_name << ";" << std::endl; // TODO: no idea if it accepts .get<char>
                 output << "}" << std::endl; // end is_array
             }
-
-
-
-            // char array stuff
         }
     }
 
 
     // if type is scalar => output directly
-    if(type->isIntegerTy(1) || type->isIntegerTy(8) || type->isIntegerTy(16) || type->isIntegerTy(32) || type->isIntegerTy(64)){
+    if(type->isIntegerTy(1) || type->isIntegerTy(8) || type->isIntegerTy(16) || type->isIntegerTy(32) || type->isIntegerTy(64) || type->isFloatTy() || type->isDoubleTy()){
         output << "\t\t";
         std::string parserArg = joinStrings(prefixes, GENERATE_FORMAT_CPP_ADDRESSING);
 
@@ -334,6 +329,8 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
             parserArg = "global." + parserArg;
         }
         //declare lvalue
+
+
         output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE);
         output << " = " << jsonInputVariableName << joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING) << ".get<" << type->getCTypeName() << ">();";
         output << std::endl;
@@ -489,7 +486,7 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
         output << "\"globals\": {" << std::endl;
             for(auto& arg: this->globals){
                 output << "\"" << arg.getName() << "\"" << ": " << getJsonInputTemplateTextForJsonRvalue(*arg.getType());
-                if (arg.getName() != f.arguments.back().getName()){
+                if (arg.getName() != this->globals.back().getName()){
                     output << "," << std::endl;
                 }
             }
@@ -527,7 +524,7 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
         }
         else if(type->isStructTy()){
             for(auto& mem : type->getNamedMembers()){
-                std::vector<std::string> member_prefixes;
+                std::vector<std::string> member_prefixes(prefixes);
                 member_prefixes.push_back(mem.getName());
                 s << getJsonOutputForType(json_name, member_prefixes, mem.getType()) << std::endl;
             }

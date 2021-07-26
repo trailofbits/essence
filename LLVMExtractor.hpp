@@ -33,6 +33,9 @@ namespace handsanitizer{
 
         Purity getPurityOfFunction(const llvm::Function &f);
 
-        std::string getStructNameFromLLVMType(const llvm::Type *type) const;
+        std::string getStructNameFromLLVMType(Module& mod, const llvm::Type *type) const;
+
+        Type *
+        getReturnType(const llvm::Function &f, std::vector<handsanitizer::Argument> &args_of_func, Module &mod);
     };
 }

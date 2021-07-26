@@ -121,6 +121,13 @@ int main(int argc, char** argv){
         }
         else{
             auto functions = program.get<std::vector<std::string>>("functions");
+            for(auto& input_func_name: functions){
+                if(std::find_if(extractedMod.functions.begin(), extractedMod.functions.end(),
+                                [&input_func_name](handsanitizer::Function& extracted_f){ return extracted_f.name == input_func_name;}) == extractedMod.functions.end()){
+                    throw std::invalid_argument("module does not contain function: " + input_func_name);
+                }
+
+            }
 
             for(auto& f : extractedMod.functions){
                 if(functions.size() > 0){

@@ -48,16 +48,19 @@ namespace handsanitizer {
         if (type->getStructName().find("union.") != std::string::npos)
             isUnion = true;
 
-        std::string structName = getStructNameFromLLVMType(type);
+        std::string structName = getStructNameFromLLVMType(mod, type);
 
         //TODO add a case for when the struct has no name by it self as can happen for return types
         Type *t = new Type(TYPE_NAMES::STRUCT, structName, members, isUnion);
         this->user_defined_types.push_back(std::pair<Type *, llvm::Type *>(t, type));
     }
 
-    std::string ModuleFromLLVMModuleFactory::getStructNameFromLLVMType(const llvm::Type *type) const {
+    std::string ModuleFromLLVMModuleFactory::getStructNameFromLLVMType(Module& mod, const llvm::Type *type) const {
         std::string structName = type->getStructName();
-        if (structName.find("struct.") != std::string::npos)
+
+        if(structName == "")
+            structName = mod.getUniqueTmpCPPVariableNameFor("anon_struct");
+        else if (structName.find("struct.") != std::string::npos)
             structName = structName.replace(0, 7, ""); //removes struct. prefix
 
         else if (structName.find("union.") != std::string::npos)
@@ -81,7 +84,12 @@ namespace handsanitizer {
                 fname = mod.getUniqueTmpCPPVariableNameFor();
 
             std::vector<handsanitizer::Argument> args_of_func = ExtractArguments(mod, f);
-            Type *retType = ConvertLLVMTypeToHandsanitizerType(&mod, f.getReturnType());
+            Type *retType = getReturnType(f, args_of_func, mod);
+
+            // TODO instead of hacking the removal of an sret we should fix generation to consider sret args
+            args_of_func.erase(std::remove_if( args_of_func.begin(), args_of_func.end(), [](const Argument& arg) {
+                        return arg.isSRet;
+                    }), args_of_func.end());
             Purity p = this->getPurityOfFunction(f);
 
 
@@ -89,6 +97,22 @@ namespace handsanitizer {
             funcs.push_back(extracted_f);
         }
         return funcs;
+    }
+
+    Type *
+    ModuleFromLLVMModuleFactory::getReturnType(const llvm::Function &f,
+                                               std::vector<handsanitizer::Argument> &args_of_func,
+                                               Module &mod) {
+        Type* retType;
+        bool sret = false;
+        for(auto& arg : args_of_func)
+            if(arg.isSRet){
+                retType = arg.getType();
+                sret = true;
+            }
+        if(!sret)
+          retType = ConvertLLVMTypeToHandsanitizerType(&mod, f.getReturnType());
+        return retType;
     }
 
     Purity ModuleFromLLVMModuleFactory::getPurityOfFunction(const llvm::Function &f) {
@@ -154,6 +178,7 @@ namespace handsanitizer {
 
     Type *ModuleFromLLVMModuleFactory::ConvertLLVMTypeToHandsanitizerType(Module *module, llvm::Type *type) {
         Type *newType = nullptr;
+
         if (type->isVoidTy())
             newType = new Type(TYPE_NAMES::VOID);
 
@@ -227,7 +252,7 @@ namespace handsanitizer {
             else
                 argType = ConvertLLVMTypeToHandsanitizerType(&mod, arg.getType());
 
-            args.push_back(Argument(argName, argType, arg.hasByValAttr()));
+            args.push_back(Argument(argName, argType, arg.hasByValAttr(), arg.hasStructRetAttr()));
         }
         return args;
     }
@@ -255,7 +280,7 @@ namespace handsanitizer {
         if (this->isFloatTy())
             return "float";
 
-        if (this->isFloatTy())
+        if (this->isDoubleTy())
             return "double";
 
         if (this->isStructTy()) {
