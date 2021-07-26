@@ -262,6 +262,9 @@ namespace handsanitizer {
         if (this->isPointerTy())
             return this->getPointerElementType()->getCTypeName() + "*";
 
+        if (this->integerSize == 1)
+            return "bool";
+
         if (this->integerSize == 8)
             return "char";
 
