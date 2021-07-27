@@ -135,6 +135,7 @@ namespace handsanitizer {
             // TODO: Should figure out what checks actually should be in here
             if (!global.getType()->isFunctionTy() &&
                 !(global.getType()->isPointerTy() && global.getType()->getPointerElementType()->isFunctionTy()) &&
+                !global.isPrivateLinkage(global.getLinkage()) &&
                 global.isDSOLocal()) {
 
                 // globals are always pointers in llvm

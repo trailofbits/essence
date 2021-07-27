@@ -180,6 +180,8 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
             referenced_name.push_back(POINTER_DENOTATION);
             output << getParserRetrievalForNamedType(jsonInputVariableName, referenced_name, type->getPointerElementType(), isForGlobals);
 
+
+
             output << "\t\t";
             if (!isForGlobals)
                 output << type->getCTypeName() << " ";
@@ -191,8 +193,9 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
             std::string elTypeName = pointeeType->getCTypeName();
             std::string arrSize =  jsonInputVariableName + joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING) + ".size()";
             std::string jsonValue = jsonInputVariableName + joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING);
-            //declare var, as we recurse it must always be an extra definition
-            output << elTypeName << "* " << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << ";" << std::endl;
+            //declare var, as we recurse it must always be an extra definition. Unless its for globals as these are declared somewhere else
+            if(!isForGlobals)
+                output << elTypeName << "* " << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << ";" << std::endl;
 
 
             // normal behavior
@@ -210,7 +213,7 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
 
                 std::string iterator_name = getUniqueLoopIteratorName(); // we require a name from this function to get proper generation
                 output << "for(int " << iterator_name << " = 0; " << iterator_name << " < "<< arrSize << ";" << iterator_name << "++) {" << std::endl;
-                output << joinStrings(malloced_value, GENERATE_FORMAT_CPP_VARIABLE) << "[" << iterator_name << "] = j" << joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING) << "[" << iterator_name << "].get<" << elTypeName << ">();" << std::endl;
+                output << joinStrings(malloced_value, GENERATE_FORMAT_CPP_VARIABLE) << "[" << iterator_name << "] = "<< jsonValue << "[" << iterator_name << "].get<" << elTypeName << ">();" << std::endl;
                 output << "}" << std::endl; //endfor
 
                 output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = " << joinStrings(malloced_value, GENERATE_FORMAT_CPP_VARIABLE) << ";" <<std::endl;
@@ -219,9 +222,10 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
                 // if its a number
                 output << "if(" << jsonValue << ".is_number()){" << std::endl;
                 //cast rvalue in case its a char
-                auto stack_alloced_name = joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) + "_stack_alloced";
-                output << elTypeName << " " <<  stack_alloced_name << "= (" << elTypeName << ")" << jsonValue << ".get<" << elTypeName << ">();" << std::endl;
-                output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = &" << stack_alloced_name << ";" << std::endl;
+                auto malloc_name = joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) + "malloc_name";
+                output << elTypeName << "* " <<  malloc_name << " = (" << elTypeName << "*) malloc(sizeof(" << elTypeName << "));" << std::endl;
+                output << malloc_name << "[0] = (" << elTypeName << ")" << jsonValue << ".get<" << elTypeName << ">();" << std::endl;
+                output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = " << malloc_name << ";" << std::endl;
                 output << "}" << std::endl; //end if number
 
             }
@@ -237,14 +241,13 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
 
                 output << "if(" << jsonValue << ".is_string()) {" << std::endl;
 
-                std::string string_tmp_val = this->getUniqueTmpCPPVariableNameFor(prefixes);
+                std::string string_tmp_val = joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE);
 //                output << "std::string " << joinStrings(string_tmp_val, GENERATE_FORMAT_CPP_VARIABLE) << " = " << jsonValue << ".get<std::string>();" << std::endl;
 
                 //we can't use c_str here because if the string itself contains null, then it it is allowed to misbehave
                 output << getStringFromJson(string_tmp_val, jsonValue, this->getUniqueTmpCPPVariableNameFor(prefixes),
                                             this->getUniqueTmpCPPVariableNameFor(prefixes));
 
-                output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = " << string_tmp_val << ";" << std::endl;
                 output << "}" << std::endl; // end is_string
 
 
@@ -434,7 +437,14 @@ std::string Module::getParserRetrievalForNamedType(std::string jsonInputVariable
     }
 
     bool Module::isNameDefined(std::string name) {
-        return std::find(std::begin(this->definedNamesForFunctionBeingGenerated), std::end(this->definedNamesForFunctionBeingGenerated), name) != std::end(this->definedNamesForFunctionBeingGenerated);
+        bool defined_as_tmp_variable = std::find(std::begin(this->definedNamesForFunctionBeingGenerated), std::end(this->definedNamesForFunctionBeingGenerated), name) != std::end(this->definedNamesForFunctionBeingGenerated);
+        bool defined_as_function = std::find_if(std::begin(this->functions), std::end(this->functions), [&name](Function& f) { return f.name == name;}) != std::end(this->functions);
+        //TODO should pass in the functions for which this is called for
+        bool defined_as_variable = std::find_if(std::begin(this->functions), std::end(this->functions), [&name](Function& f) { for(auto& arg: f.arguments) {if(arg.getName() == name){ return true;}} return false;}) != std::end(this->functions);
+
+        bool defined_as_global = std::find_if(std::begin(this->globals), std::end(this->globals), [&name](GlobalVariable& g) { return g.getName() == name;}) != std::end(this->globals);
+
+        return defined_as_tmp_variable || defined_as_function || defined_as_global;
     }
 
     std::string Module::getUniqueTmpCPPVariableNameFor(std::string prefix) {

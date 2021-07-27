@@ -63,7 +63,6 @@ static llvm::ExitOnError ExitOnErr;
 
 
 int main(int argc, char** argv){
-
     argparse::ArgumentParser program("handsanitizer", "0.1.0");
     program.add_argument("bitcodeFile");
     program.add_argument("--no-template").default_value(false).implicit_value(true); // parameter packing

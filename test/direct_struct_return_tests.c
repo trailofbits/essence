@@ -6,7 +6,7 @@ typedef struct X{
     int8_t c;
 } X;
 
-X direct_struct_return_test(){
+X direct_struct_return_tests(){
     X x;
     x.a[0] = 1;
     x.b =2;
