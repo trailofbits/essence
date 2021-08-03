@@ -67,7 +67,7 @@ int main(int argc, char** argv){
     program.add_argument("bitcodeFile");
     program.add_argument("--no-template").default_value(false).implicit_value(true); // parameter packing
     program.add_argument("-o", "--output-directory").default_value(std::string("output")); // parameter packing
-    program.add_argument("-g", "--generate-specifications").default_value(false).implicit_value(true); // parameter packing
+    program.add_argument("-b", "--build").default_value(false).implicit_value(true); // should be implicit?
     program.add_argument("functions").remaining();
 
     try {
@@ -94,7 +94,7 @@ int main(int argc, char** argv){
     std::string output_dir = program.get<std::string>("-o");
     if(!std::filesystem::exists(output_dir))
         std::filesystem::create_directory(output_dir);
-    bool genSpecification = program.get<bool>("-g");
+    bool shouldBuildFunctions = program.get<bool>("-b");
     bool skipInputTemplate = program.get<bool>("--no-template");
 
 
@@ -104,16 +104,14 @@ int main(int argc, char** argv){
 
         std::unique_ptr<llvm::Module> mod = ExitOnErr(llvm_mod.parseModule(Context));
         auto extractedMod = factory.ExtractModule(Context, mod);
-        if(genSpecification){
-
-
+        if(shouldBuildFunctions == false){
             std::filesystem::path p(inputFilename);
             p.replace_extension("");
             auto newFileName = p.filename().string();
             auto outputPath = std::filesystem::path();
             outputPath.append(output_dir);
             outputPath.append(newFileName);
-            outputPath.replace_extension("spec");
+            outputPath.replace_extension("spec.json");
             auto outputModFilename = outputPath.string();
 
             extractedMod.generate_json_module_specification(outputModFilename);

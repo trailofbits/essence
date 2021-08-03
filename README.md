@@ -1,5 +1,7 @@
 # HandSanitizer
 
+
+
 This project aims to do the following to extract all pure functions from an llvm bitcode file, and emit a separate executable for each.
 Every executable is accompanied by a json file specifiying it's arguments which can be given as a direct argument to the binary.
 
