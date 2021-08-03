@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include "include/handsan.hpp"
+#include "../include/handsan.hpp"
 
 namespace handsanitizer{
     class Module {

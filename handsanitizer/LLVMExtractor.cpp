@@ -1,8 +1,8 @@
 #include <sstream>
 #include "LLVMExtractor.hpp"
-#include "include/handsan.hpp"
-#include "include/name_generation.hpp"
-#include "include/code_generation.hpp"
+#include "../include/handsan.hpp"
+#include "../include/name_generation.hpp"
+#include "../include/code_generation.hpp"
 #include "Module.h"
 
 

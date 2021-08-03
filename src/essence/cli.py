@@ -22,6 +22,7 @@ handsan_path = "HandSanitizer"
 
 # main entry point
 def essence():
+    print(os.path.dirname(os.path.realpath(__file__)))
     parser = argparse.ArgumentParser()
     parser.add_argument('input', help='input bitcode file')
     parser.add_argument('-o', '--output',

@@ -2,7 +2,7 @@
 // Created by sabastiaan on 19-07-21.
 //
 
-#include "include/code_generation.hpp"
+#include "../include/code_generation.hpp"
 using namespace llvm;
 std::string OUTPUT_DIR = "output";
 

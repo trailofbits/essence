@@ -6,8 +6,8 @@
 #include <fstream>
 #include <iomanip>
 #include "Module.h"
-#include "include/name_generation.hpp"
-#include "include/code_generation.hpp"
+#include "../include/name_generation.hpp"
+#include "../include/code_generation.hpp"
 
 namespace handsanitizer{
 void Module::generate_cpp_file_for_function(Function &f, std::string dest_file_path) {

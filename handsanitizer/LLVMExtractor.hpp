@@ -1,7 +1,7 @@
 #pragma once
 
 #include <llvm/Bitcode/BitcodeReader.h>
-#include "include/handsan.hpp"
+#include "../include/handsan.hpp"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"

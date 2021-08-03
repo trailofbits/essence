@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.19)
-project(HandSanitizer)
+project(HandSan)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -10,13 +10,13 @@ link_directories(${LLVM_LIBRARY_DIRS})
 
 find_package(nlohmann_json CONFIG REQUIRED)
 
-set(INCLUDE_DIR include)
-
-add_executable(HandSanitizer handsan.cpp LLVMExtractor.hpp LLVMExtractor.cpp Module.cpp Module.h)
-target_sources(HandSanitizer PRIVATE
-        main.cpp name_generation.cpp code_generation.cpp ${INCLUDE_DIR}/code_generation.hpp ${INCLUDE_DIR}/code_generation.hpp ${INCLUDE_DIR}/handsan.hpp)
 
 
-target_link_libraries(HandSanitizer PRIVATE
+add_executable(HandSan handsanitizer/LLVMExtractor.hpp handsanitizer/LLVMExtractor.cpp handsanitizer/Module.cpp handsanitizer/Module.h)
+target_sources(HandSan PRIVATE
+        handsanitizer/main.cpp handsanitizer/name_generation.cpp handsanitizer/code_generation.cpp)
+
+
+target_link_libraries(HandSan PRIVATE
         LLVM
         nlohmann_json nlohmann_json::nlohmann_json)
