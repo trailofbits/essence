@@ -183,5 +183,6 @@ std::string getRegisteredStructs(){
 }
 
 void registerStruct(std::string s){
+    std::vector<void*> a;
 
 }

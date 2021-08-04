@@ -43,6 +43,12 @@ namespace handsanitizer{
 
         std::string getUnrolledTypeAsJson(Type& type);
 
+        std::string registerVariableToBeFreed(std::string variable_name);
+        bool freeVectorNameHasBeenSet = false;
+        std::string freeVectorVariableName;
+        std::string getFreeVectorName();
+        std::string getFreeVectorFreeText();
+
         /*
          *
             scalar

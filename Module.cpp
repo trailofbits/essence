@@ -45,7 +45,8 @@ namespace handsanitizer {
                         << "} " << std::endl << std::endl;
 
         // DEFINE CALLFUNCTION
-        setupfilestream << "void callFunction() { " << std::endl
+        setupfilestream << "void callFunction() { " << std::endl;
+        setupfilestream << "std::vector<void*> " << getFreeVectorName() << ";" << std::endl
                         << "\t\t" << "std::string inputfile = parser.get<std::string>(\"-i\");" << std::endl;
         auto inputFileName = getUniqueTmpCPPVariableNameFor("inputFile");
         auto jsonInputVariable = getUniqueTmpCPPVariableNameFor("j");
@@ -64,7 +65,7 @@ namespace handsanitizer {
         setupfilestream << f.name << "(" << getUntypedArgumentNames(f) << ");" << std::endl;
         setupfilestream << getJsonOutputText(output_var_name, f.retType);
 
-
+        setupfilestream << getFreeVectorFreeText();
         setupfilestream << "} " << std::endl;
         std::string setupFileString = setupfilestream.str();
 
@@ -648,6 +649,7 @@ namespace handsanitizer {
         auto indexed_output_buffer_name = output_buffer_name + "[" + writeHeadName + "]";
         output << "char* " << output_buffer_name << " = (char*)malloc(sizeof(char) * malloc_size_counter);"
                << std::endl;
+        output << registerVariableToBeFreed(output_buffer_name);
         output << "int " << writeHeadName << " = 0;" << std::endl;
         //here copy, loop again over all and write
 
@@ -701,8 +703,8 @@ namespace handsanitizer {
         std::string malloced_value = getUniqueTmpCPPVariableNameFor(prefixes);
         std::string arrSize = jsonInputVariableName + joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING) + ".size()";
 
-        // TODO: should add a corresponding free
         output << elTypeName << "* " << malloced_value << " = (" << elTypeName << "*) malloc(sizeof(" << elTypeName << ") * " << arrSize << ");" << std::endl;
+        output << registerVariableToBeFreed(malloced_value);
 
         std::string iterator_name = getUniqueLoopIteratorName();
         output << "for(int " << iterator_name << " = 0; " << iterator_name << " < " << arrSize << ";" << iterator_name << "++) {" << std::endl;
@@ -718,11 +720,32 @@ namespace handsanitizer {
         auto malloc_name = getUniqueTmpCPPVariableNameFor(prefixes);
         output << elTypeName << "* " << malloc_name << " = (" << elTypeName << "*) malloc(sizeof(" << elTypeName
                << "));" << std::endl;
+        output << registerVariableToBeFreed(malloc_name);
         output << malloc_name << "[0] = (" << elTypeName << ")" << jsonValue << ".get<" << elTypeName << ">();"
                << std::endl;
         output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = " << malloc_name << ";" << std::endl;
         output << "}" << std::endl; //end if number
 
+        return output.str();
+    }
+
+    std::string Module::registerVariableToBeFreed(std::string variable_name) {
+        std::stringstream output;
+        output << getFreeVectorName() << ".push_back((void*)" << variable_name << ");";
+        return output.str();
+    }
+
+    std::string Module::getFreeVectorName() {
+        if(!freeVectorNameHasBeenSet){
+            freeVectorVariableName = getUniqueTmpCPPVariableNameFor("vectorKeepingVariableNamesToBeFreed");
+            freeVectorNameHasBeenSet = true;
+        }
+        return freeVectorVariableName;
+    }
+
+    std::string Module::getFreeVectorFreeText() {
+        std::stringstream output;
+        output << "for(auto& p : " <<  getFreeVectorName() << ") " << std::endl << "free(p);";
         return output.str();
     }
 
