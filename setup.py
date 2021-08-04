@@ -117,10 +117,6 @@ setup(
             "essence-hello = essence.cli:hello"
             ]
     },
-    ext_package="handsanitizer",
-    ext_modules=[CMakeExtension(module_name)],
-    extras_require={"dev": 'nlohmann-json3-dev'},
-    cmdclass={"build_ext": CMakeBuild},
     url="https://github.com/trailofbits/handsanitizer",
     python_requires=">=3.7",
 )

@@ -11,14 +11,14 @@ def hello():
     print("hello essence!")
 
 
+
 def get_filepath_in_output_dir(output_dir: str, input_file: str, ext: str):
     input_path = Path(input_file)
     stem = input_path.stem
     return Path(output_dir).joinpath(stem).with_suffix(ext)
 
-
-handsan_path = "HandSanitizer"
-
+dirname = os.path.dirname(__file__)
+handsan_path = dirname + "/HandSanitizer"
 
 # main entry point
 def essence():
@@ -42,6 +42,8 @@ def essence():
     generate_spec = args.generate_spec
     generate_input_template = args.no_template != True
     functions_to_build = args.functions
+
+
 
     if pathlib.Path(input_file).suffix == '.bc':
         if build_execs:
@@ -82,7 +84,7 @@ def essence_list_signatures(spec_file: str):
 #
 # # generates and prints spec
 def essence_generate_spec(bc_file: str, output: str):
-    subprocess.run(["./HandSanitizer", bc_file, "-o", output])
+    subprocess.run([handsan_path, bc_file, "-o", output])
 
 
 #
@@ -98,9 +100,9 @@ def essence_build(bc_file: str, output: str, generate_input_template: bool, func
 
 def build_functions_for(bc_file: str, output_dir: str, template: bool, func_name: str):
     if template:
-        subprocess.run(["./HandSanitizer", "--build", "-o", output_dir, bc_file, func_name])
+        subprocess.run([handsan_path, "--build", "-o", output_dir, bc_file, func_name])
     else:
-        subprocess.run(["./HandSanitizer", "--build", "-o", output_dir, bc_file, func_name, "--no-template"])
+        subprocess.run([handsan_path, "--build", "-o", output_dir, bc_file, func_name, "--no-template"])
 
     output_obj_file_path = get_filepath_in_output_dir(output_dir, bc_file, ".o")
     subprocess.run(["llc", "-filetype=obj", bc_file, "-o", output_obj_file_path])
