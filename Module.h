@@ -39,9 +39,27 @@ namespace handsanitizer{
         std::string getParserRetrievalTextForGlobals(std::string jsonInputVariableName);
 
         std::string getJsonOutputText(std::string output_var_name, handsanitizer::Type* retType);
-        std::string getJsonOutputForType(std::string json_name, std::vector<std::string> prefixes, handsanitizer::Type* type);
+        std::string getJsonOutputForType(std::string json_name, std::vector<std::string> prefixes, handsanitizer::Type* type, bool skipRoot = false);
 
         std::string getUnrolledTypeAsJson(Type& type);
+
+        /*
+         *
+            scalar
+            struct
+            globalArray
+            pointer_to_pointer
+            pointer_to_non_pointer
+                i8 vs rest
+         */
+        std::string getParserRetrievalForScalars(std::string jsonInputVariableName, std::vector<std::string> prefixes, handsanitizer::Type *type, bool isForGlobals);
+        std::string getParserRetrievalForStructs(std::string jsonInputVariableName, std::vector<std::string> prefixes, handsanitizer::Type *type, bool isForGlobals);
+        std::string getParserRetrievalForGlobalArrays(std::string jsonInputVariableName, std::vector<std::string> prefixes, handsanitizer::Type *type);
+        std::string getParserRetrievalForPointers(std::string jsonInputVariableName, std::vector<std::string> prefixes, handsanitizer::Type *type, bool isForGlobals);
+        std::string getParserRetrievalForPointersToNonPointers(std::string jsonInputVariableName, std::vector<std::string> prefixes, handsanitizer::Type *type, bool isForGlobals);
+        std::string getParserRetrievalForPointersToPointers(std::string jsonInputVariableName, std::vector<std::string> prefixes, handsanitizer::Type *type, bool isForGlobals);
+        std::string getParserRetrievalForPointerToCharType(std::string jsonInputVariableName, std::vector<std::string> prefixes, handsanitizer::Type *type, bool isForGlobals);
+        std::string getParserRetrievalForPointerToNonCharType(std::string jsonInputVariableName, std::vector<std::string> prefixes, handsanitizer::Type *type, bool isForGlobals);
     };
 }
 
