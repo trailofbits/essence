@@ -47,7 +47,7 @@ namespace handsanitizer {
         // DEFINE CALLFUNCTION
         setupfilestream << "void callFunction() { " << std::endl;
         setupfilestream << "std::vector<void*> " << getFreeVectorName() << ";" << std::endl
-                        << "\t\t" << "std::string inputfile = parser.get<std::string>(\"-i\");" << std::endl;
+                        << "\t\t" << "std::string inputfile = parser.get<std::string>(\"input_file\");" << std::endl;
         auto inputFileName = getUniqueTmpCPPVariableNameFor("inputFile");
         auto jsonInputVariable = getUniqueTmpCPPVariableNameFor("j");
         setupfilestream << "\t\t" << "std::ifstream " << inputFileName << "(inputfile);\n"
@@ -755,7 +755,7 @@ namespace handsanitizer {
         return R"(
         int main(int argc, char *argv[]) {
             setupParser();
-            parser.add_argument("-i", "--input").help("The json file containing arguments").required();
+            parser.add_argument("input_file").help("The json file containing arguments");
             try {
                 parser.parse_args(argc, argv);
             }
