@@ -15,7 +15,7 @@ find_package(nlohmann_json CONFIG REQUIRED)
 
 add_executable(HandSanitizer handsanitizer/LLVMExtractor.hpp handsanitizer/LLVMExtractor.cpp handsanitizer/Module.cpp handsanitizer/Module.h)
 target_sources(HandSanitizer PRIVATE
-        handsanitizer/main.cpp handsanitizer/name_generation.cpp handsanitizer/code_generation.cpp)
+        handsanitizer/main.cpp)
 
 
 target_link_libraries(HandSanitizer PRIVATE

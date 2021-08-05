@@ -25,50 +25,15 @@
 #include <iostream>
 
 // Any name that is auto-generated must be unique
-enum StringJoiningFormat{
-    GENERATE_FORMAT_CPP_ADDRESSING,
-    GENERATE_FORMAT_CPP_VARIABLE,
-    GENERATE_FORMAT_JSON_ARRAY_ADDRESSING,
-    GENERATE_FORMAT_JSON_ARRAY_ADDRESSING_WITHOUT_ROOT
-};
-
-extern std::string CPP_ADDRESSING_DELIMITER;
-extern std::string LVALUE_DELIMITER;
-extern std::string POINTER_DENOTATION;
+//
+//extern std::string CPP_ADDRESSING_DELIMITER;
+//extern std::string LVALUE_DELIMITER;
+//extern std::string POINTER_DENOTATION;
+//
+//
+//std::string joinStrings(std::vector<std::string> path, StringJoiningFormat format);
 
 
-std::string joinStrings(std::vector<std::string> path, StringJoiningFormat format);
-
-
-// do we want special names for special root level var names?
-
-
-
-
-std::string getCTypeNameForLLVMType(handsanitizer::Type& type);
-
-
-
-// returns a random string from dictionary
-//std::string getRandomStringAddition(); // should not be used by users?
-std::string getUniqueCPPTmpName();
-std::string getUniqueLoopIteratorName();
-
-
-
-void reserveName(std::string name); // makes sure no other variable will ever use the same name
-bool isReservedNamed(std::string name); // checks if a name already exists for our file
-
-void registerGlobal(std::string name, llvm::Type* type);
-bool isGlobal(std::string name);
-
-
-int getNum();
-void registerStruct(std::string s);
-std::string getRegisteredStructs();
-void defineIfNeeded(llvm::Type& arg, bool isRetType = false);
-
-// Unions get translated to structs in LLVM so this should also cover that
 
 #endif //HANDSANITIZER_NAME_GENERATION_HPP
 

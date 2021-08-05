@@ -4,6 +4,16 @@
 #include "../include/handsan.hpp"
 
 namespace handsanitizer{
+    enum StringJoiningFormat{
+        GENERATE_FORMAT_CPP_ADDRESSING,
+        GENERATE_FORMAT_CPP_VARIABLE,
+        GENERATE_FORMAT_JSON_ARRAY_ADDRESSING,
+        GENERATE_FORMAT_JSON_ARRAY_ADDRESSING_WITHOUT_ROOT
+    };
+
+    extern const std::string CPP_ADDRESSING_DELIMITER;
+    extern const std::string LVALUE_DELIMITER;
+    extern const std::string POINTER_DENOTATION;
     class Module {
     public:
         // we assume that the types here are ordered such that a single never has a dependcy before it
@@ -17,6 +27,8 @@ namespace handsanitizer{
         std::string getUniqueTmpCPPVariableNameFor(std::string prefix);
         std::string getUniqueTmpCPPVariableNameFor();
 
+        std::string getUniqueLoopIteratorName();
+
         void generate_cpp_file_for_function(Function& f, std::string dest_file_path);
         void generate_json_input_template_file(Function& f, std::string dest_file_path);
 
@@ -24,6 +36,7 @@ namespace handsanitizer{
 
     private:
         std::vector<std::string> definedNamesForFunctionBeingGenerated;
+        std::vector<std::string> iterator_names;
 
         std::string getTextForUserDefinedTypes();
         std::string getTextForUserDefinedType(Type *type);
@@ -67,8 +80,11 @@ namespace handsanitizer{
         std::string getParserRetrievalForPointerToCharType(std::string jsonInputVariableName, std::vector<std::string> prefixes, handsanitizer::Type *type, bool isForGlobals);
         std::string getParserRetrievalForPointerToNonCharType(std::string jsonInputVariableName, std::vector<std::string> prefixes, handsanitizer::Type *type, bool isForGlobals);
 
-
         std::string getMainText();
+
+        std::string joinStrings(std::vector<std::string> strings, StringJoiningFormat format);
+        std::string getStringFromJson(std::string output_var, std::string json_name, std::string tmp_name_1, std::string tmp_name_2, bool addNullTermination = true);
+        std::string getStringLengthFromJson(std::string output_var, std::string json_name, std::string tmp_name_1, std::string tmp_name_2, bool addNullTermination = true);
     };
 }
 

@@ -10,6 +10,10 @@
 #include "../include/code_generation.hpp"
 
 namespace handsanitizer {
+    const std::string CPP_ADDRESSING_DELIMITER = ".";
+    const std::string LVALUE_DELIMITER = "_";
+    const std::string POINTER_DENOTATION = "__p";
+
     void Module::generate_cpp_file_for_function(Function &f, std::string dest_file_path) {
         this->definedNamesForFunctionBeingGenerated.clear();
         std::stringstream setupfilestream;
@@ -22,7 +26,6 @@ namespace handsanitizer {
 
 
         // DECLARE STRUCTS
-
         setupfilestream << getTextForUserDefinedTypes();
 
         // DECLARATION TEST FUNCTION
@@ -769,6 +772,69 @@ namespace handsanitizer {
             return 0;
         }
         )";
+    }
+
+    std::string Module::getUniqueLoopIteratorName() {
+        auto it_name = getUniqueTmpCPPVariableNameFor();
+        iterator_names.push_back(it_name);
+        return it_name;
+    }
+
+    std::string Module::joinStrings(std::vector<std::string> strings, StringJoiningFormat format) {
+        std::stringstream output;
+        std::string delimiter = "";
+        if(format == GENERATE_FORMAT_CPP_ADDRESSING)
+            delimiter = CPP_ADDRESSING_DELIMITER;
+        if(format == GENERATE_FORMAT_CPP_VARIABLE)
+            delimiter = LVALUE_DELIMITER;
+
+        bool hasSkippedRoot = false;
+
+        for(std::string s : strings){
+            if(format != GENERATE_FORMAT_CPP_VARIABLE && s == POINTER_DENOTATION)
+                continue; // don't print the pointer markings in lvalue as these are abstracted away
+            if(format == GENERATE_FORMAT_JSON_ARRAY_ADDRESSING || format == GENERATE_FORMAT_JSON_ARRAY_ADDRESSING_WITHOUT_ROOT){
+                if(format == GENERATE_FORMAT_JSON_ARRAY_ADDRESSING_WITHOUT_ROOT && !hasSkippedRoot){
+                    hasSkippedRoot = true;
+                    continue;
+                }
+                if(std::find(iterator_names.begin(), iterator_names.end(), s) != iterator_names.end())
+                    output << "[" << s << "]";
+                else
+                    output << "[\"" << s << "\"]";
+            }
+            else{
+                output << s << delimiter;
+            }
+        }
+
+        auto retstring = output.str();
+        if(retstring.length() > 0 && format != GENERATE_FORMAT_JSON_ARRAY_ADDRESSING && format != GENERATE_FORMAT_JSON_ARRAY_ADDRESSING_WITHOUT_ROOT)
+            retstring.pop_back(); //remove trailing delimiter
+        return retstring;
+    }
+
+    std::string Module::getStringFromJson(std::string output_var, std::string json_name, std::string tmp_name_1,
+                                          std::string tmp_name_2, bool addNullTermination) {
+        std::stringstream s;
+        s << "std::string " << tmp_name_1 << " = " << json_name << ".get<std::string>();" << std::endl;
+//    s << "std::vector<char> " << tmp_name_2 << "(" << tmp_name_1 << ".begin(), " << tmp_name_1 << ".end());";
+//    if(addNullTermination)
+//        s << tmp_name_2 << ".push_back('\\x00');" << std::endl;
+//    s << output_var << " = &" << tmp_name_2 << "[0];" << std::endl;
+        s << output_var << " = " << tmp_name_1 << ".data();";
+        return s.str();
+    }
+
+    std::string Module::getStringLengthFromJson(std::string output_var, std::string json_name, std::string tmp_name_1,
+                                                std::string tmp_name_2, bool addNullTermination) {
+        std::stringstream s;
+        s << "std::string " << tmp_name_1 << " = " << json_name << ".get<std::string>();" << std::endl;
+        s << "std::vector<char> " << tmp_name_2 << "(" << tmp_name_1 << ".begin(), " << tmp_name_1 << ".end());";
+        if(addNullTermination)
+            s << tmp_name_2 << ".push_back('\x00');" << std::endl;
+        s << "int " << output_var << " = " << tmp_name_2 << ".size();" << std::endl;
+        return s.str();
     }
 
 }
