@@ -7,18 +7,15 @@ from itertools import groupby
 from pathlib import Path
 
 
-def hello():
-    print("hello essence!")
-
-
-
 def get_filepath_in_output_dir(output_dir: str, input_file: str, ext: str):
     input_path = Path(input_file)
     stem = input_path.stem
     return Path(output_dir).joinpath(stem).with_suffix(ext)
 
+
 dirname = os.path.dirname(__file__)
-handsan_path = dirname + "/HandSanitizer"
+handsan_path = dirname + "/../../HandSanitizer"
+
 
 # main entry point
 def essence():
@@ -43,7 +40,9 @@ def essence():
     generate_input_template = args.no_template != True
     functions_to_build = args.functions
 
-
+    if pathlib.Path(input_file).suffix == '.c':
+        print("got .c file as input, you probably meant .bc")
+        return;
 
     if pathlib.Path(input_file).suffix == '.bc':
         if build_execs:
@@ -84,7 +83,7 @@ def essence_list_signatures(spec_file: str):
 #
 # # generates and prints spec
 def essence_generate_spec(bc_file: str, output: str):
-    subprocess.run([handsan_path, bc_file, "-o", output])
+    subprocess.run([handsan_path, "-o", output, bc_file])
 
 
 #
@@ -111,7 +110,7 @@ def build_functions_for(bc_file: str, output_dir: str, template: bool, func_name
     func_generated_cpp_file_path = get_filepath_in_output_dir(output_dir, func_name, ".cpp")
 
     subprocess.run(
-        ["clang++", "-std=c++17", "skelmain.cpp", "-I.", output_obj_file_path, func_generated_cpp_file_path, "-o",
+        ["clang++", "-std=c++17", output_obj_file_path, func_generated_cpp_file_path, "-o",
          func_exec_file_path])
 
 # TODO later

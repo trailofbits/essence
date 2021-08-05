@@ -18,7 +18,7 @@ def call_handsanitizer(function_to_test):
     subprocess.run(["../HandSanitizer", bc_file, "-g", "-o", output_dir])
     subprocess.run(["llc", "-filetype=obj", bc_file, "-o", target + ".o"])
     subprocess.run(["../HandSanitizer", bc_file, "-o", "output", function_to_test])
-    subprocess.run(["clang++", "-g", "-std=c++17", "../skelmain.cpp", target + ".o", "-I../", target + ".cpp", "-o", target])
+    subprocess.run(["clang++", "-g", "-std=c++17", target + ".o", target + ".cpp", "-o", target])
     return subprocess.run(["./" + target, "-i", function_to_test + ".json"], capture_output=True).stdout
 
 

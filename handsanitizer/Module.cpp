@@ -683,6 +683,8 @@ namespace handsanitizer {
         output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = " << output_buffer_name << ";"
                << std::endl;
         output << "}" << std::endl; // end is_array
+
+        output << getMainText();
         return output.str();
     }
 
@@ -747,6 +749,25 @@ namespace handsanitizer {
         std::stringstream output;
         output << "for(auto& p : " <<  getFreeVectorName() << ") " << std::endl << "free(p);";
         return output.str();
+    }
+
+    std::string Module::getMainText() {
+        return R"(
+        int main(int argc, char *argv[]) {
+            setupParser();
+            parser.add_argument("-i", "--input").help("The json file containing arguments").required();
+            try {
+                parser.parse_args(argc, argv);
+            }
+            catch (const std::runtime_error& err) {
+                std::cout << err.what() << std::endl;
+                std::cout << parser;
+                exit(0);
+            }
+            callFunction();
+            return 0;
+        }
+        )";
     }
 
 }

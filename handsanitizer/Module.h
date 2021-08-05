@@ -66,6 +66,9 @@ namespace handsanitizer{
         std::string getParserRetrievalForPointersToPointers(std::string jsonInputVariableName, std::vector<std::string> prefixes, handsanitizer::Type *type, bool isForGlobals);
         std::string getParserRetrievalForPointerToCharType(std::string jsonInputVariableName, std::vector<std::string> prefixes, handsanitizer::Type *type, bool isForGlobals);
         std::string getParserRetrievalForPointerToNonCharType(std::string jsonInputVariableName, std::vector<std::string> prefixes, handsanitizer::Type *type, bool isForGlobals);
+
+
+        std::string getMainText();
     };
 }
 
