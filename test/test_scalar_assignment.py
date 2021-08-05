@@ -15,11 +15,13 @@ def call_handsanitizer(function_to_test):
     output_dir = "output/"
     target = output_dir + function_to_test
 
-    subprocess.run(["../HandSanitizer", bc_file, "-g", "-o", output_dir])
     subprocess.run(["llc", "-filetype=obj", bc_file, "-o", target + ".o"])
-    subprocess.run(["../HandSanitizer", bc_file, "-o", "output", function_to_test])
-    subprocess.run(["clang++", "-g", "-std=c++17", target + ".o", target + ".cpp", "-o", target])
-    return subprocess.run(["./" + target, "-i", function_to_test + ".json"], capture_output=True).stdout
+    print("got: ")
+    print(subprocess.run(["../HandSanitizer", "--build", "--no-template", "-o", "output", bc_file, function_to_test]))
+    print("clanging: ")
+
+    print(subprocess.run(["clang++", "-std=c++17", target + ".o", target + ".cpp", "-o", target]))
+    return subprocess.run(["./" + target,  function_to_test + ".json"], capture_output=True).stdout
 
 
 def test_scalar_assignments():

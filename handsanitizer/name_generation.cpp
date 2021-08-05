@@ -31,11 +31,16 @@ std::string joinStrings(std::vector<std::string> strings, StringJoiningFormat fo
     if(format == GENERATE_FORMAT_CPP_VARIABLE)
         delimiter = LVALUE_DELIMITER;
 
+    bool hasSkippedRoot = false;
 
     for(std::string s : strings){
         if(format != GENERATE_FORMAT_CPP_VARIABLE && s == POINTER_DENOTATION)
             continue; // don't print the pointer markings in lvalue as these are abstracted away
-        if(format == GENERATE_FORMAT_JSON_ARRAY_ADDRESSING){
+        if(format == GENERATE_FORMAT_JSON_ARRAY_ADDRESSING || format == GENERATE_FORMAT_JSON_ARRAY_ADDRESSING_WITHOUT_ROOT){
+            if(format == GENERATE_FORMAT_JSON_ARRAY_ADDRESSING_WITHOUT_ROOT && !hasSkippedRoot){
+                hasSkippedRoot = true;
+                continue;
+            }
             if(std::find(iterator_names.begin(), iterator_names.end(), s) != iterator_names.end())
                 output << "[" << s << "]";
             else
@@ -47,7 +52,7 @@ std::string joinStrings(std::vector<std::string> strings, StringJoiningFormat fo
     }
 
     auto retstring = output.str();
-    if(retstring.length() > 0 && format != GENERATE_FORMAT_JSON_ARRAY_ADDRESSING)
+    if(retstring.length() > 0 && format != GENERATE_FORMAT_JSON_ARRAY_ADDRESSING && format != GENERATE_FORMAT_JSON_ARRAY_ADDRESSING_WITHOUT_ROOT)
         retstring.pop_back(); //remove trailing delimiter
     return retstring;
 }

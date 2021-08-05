@@ -14,10 +14,10 @@ namespace handsanitizer {
         this->definedNamesForFunctionBeingGenerated.clear();
         std::stringstream setupfilestream;
 
-        setupfilestream << "#include \"skelmain.hpp\" " << std::endl;
         setupfilestream << "#include <cstdint>" << std::endl;
         setupfilestream << "#include <iomanip>" << std::endl;
-
+        setupfilestream << "#include <argparse/argparse.hpp>" << std::endl;
+        setupfilestream << "#include <fstream>" << std::endl;
         setupfilestream << "#include <nlohmann/json.hpp> // header only lib" << std::endl << std::endl;
 
 
@@ -67,6 +67,8 @@ namespace handsanitizer {
 
         setupfilestream << getFreeVectorFreeText();
         setupfilestream << "} " << std::endl;
+
+        setupfilestream << getMainText();
         std::string setupFileString = setupfilestream.str();
 
         std::ofstream of;
@@ -684,7 +686,6 @@ namespace handsanitizer {
                << std::endl;
         output << "}" << std::endl; // end is_array
 
-        output << getMainText();
         return output.str();
     }
 
