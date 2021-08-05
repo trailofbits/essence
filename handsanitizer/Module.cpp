@@ -465,9 +465,11 @@ namespace handsanitizer {
             output << ", \"bitWidth\": " << type.getBitWidth();
 
         if (type.isStructTy()) {
-            output << ", \"structName\": " << type.getCTypeName() << ", \"structMembers\": [";
+            output << ", \"structName\": \"" << type.getCTypeName() << "\", \"structMembers\": [";
             for (auto &member : type.getNamedMembers()) {
+                output << "{";
                 output << "\"" << member.getName() << "\"" << ": " << getUnrolledTypeAsJson(*member.getType());
+                output << "}";
                 if (member.getName() != type.getNamedMembers().back().name)
                     output << ",";
             }

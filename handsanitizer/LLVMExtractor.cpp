@@ -56,8 +56,7 @@ namespace handsanitizer {
     }
 
     std::string ModuleFromLLVMModuleFactory::getStructNameFromLLVMType(Module& mod, const llvm::Type *type) const {
-        std::string structName = type->getStructName();
-
+        std::string structName = type->getStructName().str();
         if(structName == "")
             structName = mod.getUniqueTmpCPPVariableNameFor("anon_struct");
         else if (structName.find("struct.") != std::string::npos)
@@ -136,11 +135,12 @@ namespace handsanitizer {
             if (!global.getType()->isFunctionTy() &&
                 !(global.getType()->isPointerTy() && global.getType()->getPointerElementType()->isFunctionTy()) &&
                 !global.isPrivateLinkage(global.getLinkage()) &&
+                !global.getType()->isMetadataTy() &&
                 global.isDSOLocal()) {
 
                 // globals are always pointers in llvm
                 auto globalType = this->ConvertLLVMTypeToHandsanitizerType(&hand_mod, global.getType()->getPointerElementType());
-                GlobalVariable globalVariable(global.getName(),
+                GlobalVariable globalVariable(global.getName().str(), // TODO .str
                                               globalType);
                 globals.push_back(globalVariable);
             }
@@ -207,8 +207,14 @@ namespace handsanitizer {
             newType = this->getDefinedStructByLLVMType(*module, type);
         }
 
-        if (newType == nullptr)
-            throw std::invalid_argument("Could not convert llvm type");
+        if (newType == nullptr) {
+            std::string type_str;
+            llvm::raw_string_ostream rso(type_str);
+            type->print(rso);
+
+
+            throw std::invalid_argument("Could not convert llvm type" + rso.str());
+        }
 
         return newType;
     }
@@ -241,6 +247,9 @@ namespace handsanitizer {
         std::vector<Argument> args;
 
         for (auto &arg : f.args()) {
+            if(arg.getType()->isMetadataTy()) // TODO is it a problem that arguments can be meta data?
+                continue;
+
             std::string argName = "";
             if (arg.hasName())
                 argName = arg.getName();

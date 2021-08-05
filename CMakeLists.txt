@@ -4,7 +4,7 @@ project(HandSanitizer)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY .)
 
-find_package(LLVM 10 REQUIRED)
+find_package(LLVM 11 REQUIRED)
 add_definitions(${LLVM_DEFINITIONS})
 include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
 link_directories(${LLVM_LIBRARY_DIRS})

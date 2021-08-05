@@ -79,7 +79,7 @@ int main(int argc, char** argv){
         exit(0);
     }
 
-
+    std::cout << "starting handsan" << std::endl;
 
     // parse llvm and open module
     llvm::InitLLVM X(argc, argv);
@@ -91,6 +91,7 @@ int main(int argc, char** argv){
     std::unique_ptr<llvm::MemoryBuffer> MB = ExitOnErr(errorOrToExpected(llvm::MemoryBuffer::getFileOrSTDIN(inputFilename)));
     llvm::BitcodeFileContents IF = ExitOnErr(llvm::getBitcodeFileContents(*MB));
 
+    std::cout << "opened bc" << std::endl;
     std::string output_dir = program.get<std::string>("-o");
     if(!std::filesystem::exists(output_dir))
         std::filesystem::create_directory(output_dir);
@@ -102,8 +103,13 @@ int main(int argc, char** argv){
 
     for(auto& llvm_mod : IF.Mods){
 
+
+        std::cout << "parsing" << std::endl;
         std::unique_ptr<llvm::Module> mod = ExitOnErr(llvm_mod.parseModule(Context));
+        std::cout << "done parsing" << std::endl;
+
         auto extractedMod = factory.ExtractModule(Context, mod);
+        std::cout << "done extracting" << std::endl;
         if(shouldBuildFunctions == false){
             std::filesystem::path p(inputFilename);
             p.replace_extension("");
@@ -114,6 +120,7 @@ int main(int argc, char** argv){
             outputPath.replace_extension("spec.json");
             auto outputModFilename = outputPath.string();
 
+            std::cout << "generating spec" << std::endl;
             extractedMod.generate_json_module_specification(outputModFilename);
         }
         else{

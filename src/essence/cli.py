@@ -101,7 +101,7 @@ def build_functions_for(bc_file: str, output_dir: str, template: bool, func_name
     if template:
         subprocess.run([handsan_path, "--build", "-o", output_dir, bc_file, func_name])
     else:
-        subprocess.run([handsan_path, "--build", "-o", output_dir, bc_file, func_name, "--no-template"])
+        subprocess.run([handsan_path, "--build", "--no-template", "-o", output_dir, bc_file, func_name])
 
     output_obj_file_path = get_filepath_in_output_dir(output_dir, bc_file, ".o")
     subprocess.run(["llc", "-filetype=obj", bc_file, "-o", output_obj_file_path])
