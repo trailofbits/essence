@@ -77,8 +77,11 @@ namespace handsanitizer {
 //                continue;
 
             std::string fname;
-            if (f.hasName())
+            if (f.hasName()){
                 fname = f.getName();
+                if(fname == "main")
+                    continue;
+            }
             else
                 fname = mod.getUniqueTmpCPPVariableNameFor();
 
