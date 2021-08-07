@@ -79,7 +79,6 @@ int main(int argc, char** argv){
         exit(0);
     }
 
-    std::cout << "starting handsan" << std::endl;
 
     // parse llvm and open module
     llvm::InitLLVM X(argc, argv);
@@ -91,26 +90,20 @@ int main(int argc, char** argv){
     std::unique_ptr<llvm::MemoryBuffer> MB = ExitOnErr(errorOrToExpected(llvm::MemoryBuffer::getFileOrSTDIN(inputFilename)));
     llvm::BitcodeFileContents IF = ExitOnErr(llvm::getBitcodeFileContents(*MB));
 
-    std::cout << "opened bc" << std::endl;
     std::string output_dir = program.get<std::string>("-o");
     if(!std::filesystem::exists(output_dir))
         std::filesystem::create_directory(output_dir);
-    bool shouldBuildFunctions = program.get<bool>("-b");
-    bool skipInputTemplate = program.get<bool>("--no-template");
 
+    bool buildFlag = program.get<bool>("-b");
+    bool skipInputTemplate = program.get<bool>("--no-template");
 
     handsanitizer::ModuleFromLLVMModuleFactory factory;
 
     for(auto& llvm_mod : IF.Mods){
-
-
-        std::cout << "parsing" << std::endl;
         std::unique_ptr<llvm::Module> mod = ExitOnErr(llvm_mod.parseModule(Context));
-        std::cout << "done parsing" << std::endl;
 
         auto extractedMod = factory.ExtractModule(Context, mod);
-        std::cout << "done extracting" << std::endl;
-        if(shouldBuildFunctions == false){
+        if(buildFlag == false){
             std::filesystem::path p(inputFilename);
             p.replace_extension("");
             auto newFileName = p.filename().string();
@@ -120,21 +113,28 @@ int main(int argc, char** argv){
             outputPath.replace_extension("spec.json");
             auto outputModFilename = outputPath.string();
 
-            std::cout << "generating spec" << std::endl;
             extractedMod.generate_json_module_specification(outputModFilename);
         }
         else{
-            auto functions = program.get<std::vector<std::string>>("functions");
-            for(auto& input_func_name: functions){
-                if(std::find_if(extractedMod.functions.begin(), extractedMod.functions.end(),
-                                [&input_func_name](handsanitizer::Function& extracted_f){ return extracted_f.name == input_func_name;}) == extractedMod.functions.end()){
-                    throw std::invalid_argument("module does not contain function: " + input_func_name);
-                }
-
-            }
 
             for(auto& f : extractedMod.functions){
-                if(functions.size() > 0){
+                if(buildAllReadNone){
+                    if(f.getPurityName() != "read_none")
+                        continue;
+                }
+                else if (buildAllWriteOnly){
+                    if (f.getPurityName() != "write_only")
+                        continue;
+                }
+                else{
+                    auto functions = program.get<std::vector<std::string>>("functions");
+                    for(auto& input_func_name: functions){
+                        if(std::find_if(extractedMod.functions.begin(), extractedMod.functions.end(),
+                                        [&input_func_name](handsanitizer::Function& extracted_f){ return extracted_f.name == input_func_name;}) == extractedMod.functions.end()){
+                            throw std::invalid_argument("module does not contain function: " + input_func_name);
+                        }
+
+                    }
                     if(std::find(functions.begin(), functions.end(), f.name) == functions.end()){
                         continue; // if functions are specified we only output those, otherwise output all funcs
                     }

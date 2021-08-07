@@ -29,6 +29,8 @@ def essence():
                         action="store_true")
     parser.add_argument('-g', '--generate-spec', help='generates specification of bitcode module', action="store_true")
     parser.add_argument('--no-template', help='prevents the generation of json input templates', action="store_true")
+    parser.add_argument('--build-read-none', help='build all functions that have purity level: read none', action="store_true")
+    parser.add_argument('--build-write-only', help='build all functions that have purity level: write only', action="store_true")
     parser.add_argument('functions', nargs='*',
                         help='functions from the specified bitcode module which need to be build')
     args = parser.parse_args()
@@ -39,6 +41,8 @@ def essence():
     generate_spec = args.generate_spec
     generate_input_template = args.no_template != True
     functions_to_build = args.functions
+    build_read_none = args.build_read_none
+    build_write_only = args.build_write_only
 
     if pathlib.Path(input_file).suffix == '.c':
         print("got .c file as input, you probably meant .bc")
@@ -47,6 +51,12 @@ def essence():
     if pathlib.Path(input_file).suffix == '.bc':
         if build_execs:
             essence_build(input_file, output_dir, generate_input_template, functions_to_build)
+
+        elif build_read_none or build_write_only:
+            if build_read_none:
+                essence_build_read_none(input_file, output_dir, generate_input_template)
+            if build_write_only:
+                essence_build_write_only(input_file, output_dir, generate_input_template)
 
         elif generate_spec:
             essence_generate_spec(input_file, output_dir)
@@ -68,18 +78,16 @@ def essence_list_signatures(spec_file: str):
         contents = json.loads(j.read())
         funcs = contents['functions']
 
+        funcs.sort(key=lambda content: content['purity'])
+        groups = groupby(funcs, lambda content: content['purity'])
+
         print("-------- Functions --------")
-        print("Pure:")
-        for func in filter(lambda f: f['purity'] != "impure", funcs):
-            print(func['name'], ",", func['purity'], ":", func['signature'])
-
-        print("Impure:")
-        for func in filter(lambda f: f['purity'] == "impure", funcs):
-            print("\t", func['name'], ":", func['signature'])
+        for purity, funcs in groups:
+            print(purity + ":")
+            for func in funcs:
+                print("\t", func['name'] + ":", func['signature'])
 
 
-#
-#
 #
 # # generates and prints spec
 def essence_generate_spec(bc_file: str, output: str):
@@ -97,6 +105,31 @@ def essence_build(bc_file: str, output: str, generate_input_template: bool, func
         build_functions_for(bc_file, output, generate_input_template, func_name)
 
 
+
+def essence_build_read_none(bc_file: str, output: str, generate_input_template: bool):
+    essence_build_for_purity_level(bc_file, output, generate_input_template, 'read_none')
+
+def essence_build_write_only(bc_file: str, output: str, generate_input_template: bool):
+    essence_build_for_purity_level(bc_file, output, generate_input_template, 'write_only')
+
+
+def essence_build_for_purity_level(bc_file: str, output: str, generate_input_template: bool, purity_level :str):
+    essence_generate_spec(bc_file, output)
+    spec_path = get_filepath_in_output_dir(output, bc_file, '.spec.json')
+    with open(spec_path, 'r') as j:
+        contents = json.loads(j.read())
+        funcs = contents['functions']
+
+        funcs = filter(lambda content: content['purity'] == purity_level, funcs)
+        print("----------------- building " + purity_level  + " functions --------------------")
+        for func in funcs:
+            print('building', func['name'])
+            build_functions_for(bc_file, output, generate_input_template, func['name'])
+
+
+
+
+
 def build_functions_for(bc_file: str, output_dir: str, template: bool, func_name: str):
     if template:
         subprocess.run([handsan_path, "--build", "-o", output_dir, bc_file, func_name])
@@ -104,7 +137,7 @@ def build_functions_for(bc_file: str, output_dir: str, template: bool, func_name
         subprocess.run([handsan_path, "--build", "--no-template", "-o", output_dir, bc_file, func_name])
 
     output_obj_file_path = get_filepath_in_output_dir(output_dir, bc_file, ".o")
-    subprocess.run(["llc", "-filetype=obj", bc_file, "-o", output_obj_file_path])
+    subprocess.run(["llc-11", "-filetype=obj", bc_file, "-o", output_obj_file_path])
 
     func_exec_file_path = get_filepath_in_output_dir(output_dir, func_name, "")
     func_generated_cpp_file_path = get_filepath_in_output_dir(output_dir, func_name, ".cpp")
@@ -112,6 +145,5 @@ def build_functions_for(bc_file: str, output_dir: str, template: bool, func_name
     subprocess.run(
         ["clang++", "-std=c++17", output_obj_file_path, func_generated_cpp_file_path, "-o",
          func_exec_file_path])
-
 # TODO later
 # def essence_build_from_spec(bc_file: str):

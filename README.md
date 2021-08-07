@@ -1,5 +1,23 @@
 # HandSanitizer
 
+###install instructions
+
+```shell
+$ git clone https://github.com/trailofbits/HandSanitizer
+$ cd HandSanitizer
+$ cmake CMakeLists.txt
+$ make 
+$ pip install -e ./
+```
+
+
+### Commands  
+```shell
+essence test.bc 
+ 
+```
+
+
 
 
 This project aims to do the following to extract all pure functions from an llvm bitcode file, and emit a separate executable for each.
@@ -8,17 +26,35 @@ Every executable is accompanied by a json file specifiying it's arguments which 
 mvp example 
 
 ```c
-llvm containing bitcode for: 
+--- test.bc, llvm containing bitcode for: 
 int f(int x, int y){ return x + y}
-~~~~
-ouput/
-    - f.cpp
-    - f.json
-    - f
-
-~~~~ call function with
-./f f.json
 ```
+
+```c 
+essence test.bc 
+-------- Functions --------
+Pure:
+Impure:
+	 main : int32_t main();
+```
+
+results in 
+```c
+output/
+    main
+    main.cpp
+    main.json 
+```
+
+main is executable, expecting main.json as argument which serves as in input template. 
+
+
+```c
+options 
+            --generate-specification
+            --build 
+```
+
 
 
 ### Pointers

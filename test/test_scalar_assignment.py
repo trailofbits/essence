@@ -4,8 +4,14 @@ import argparse
 import json
 from itertools import groupby
 from pathlib import Path
+from essence.cli import essence_build_read_none, essence_build_write_only
+import shutil
 
+# empty directory first as some our test depend on the (non)existence of files
+shutil.rmtree("output")
 Path("output").mkdir(parents=True, exist_ok=True)
+
+handsan_path = "../HandSanitizer"
 
 
 # same input for all is name of bc
@@ -17,11 +23,11 @@ def call_handsanitizer(function_to_test):
 
     subprocess.run(["llc", "-filetype=obj", bc_file, "-o", target + ".o"])
     print("got: ")
-    print(subprocess.run(["../HandSanitizer", "--build", "--no-template", "-o", "output", bc_file, function_to_test]))
+    print(subprocess.run([handsan_path, "--build", "--no-template", "-o", "output", bc_file, function_to_test]))
     print("clanging: ")
 
     print(subprocess.run(["clang++", "-std=c++17", target + ".o", target + ".cpp", "-o", target]))
-    return subprocess.run(["./" + target,  function_to_test + ".json"], capture_output=True).stdout
+    return subprocess.run(["./" + target, function_to_test + ".json"], capture_output=True).stdout
 
 
 def test_scalar_assignments():
@@ -112,3 +118,19 @@ def test_pointer_global_assignment():
     output_json = json.loads(program_output)
     print(json.dumps(output_json, indent=4))
     assert output_json["globals"]["int_pointer_global_val_post_call"] == 1
+
+
+def test_build_read_none_only_builds_read_none_functions():
+    test_file = "read_none_write_only_reads_memory_test.bc"
+    essence_build_read_none(test_file, "output/read_none", False)
+    assert os.path.isfile("output/read_none/read_none.cpp") == True
+    assert os.path.isfile("output/read_none/write_only.cpp") == False
+    assert os.path.isfile("output/read_none/reads_memory.cpp") == False
+
+
+def test_build_read_none_only_builds_write_only_functions():
+    test_file = "read_none_write_only_reads_memory_test.bc"
+    essence_build_write_only(test_file, "output/write_only", False)
+    assert os.path.isfile("output/write_only/read_none.cpp") == False
+    assert os.path.isfile("output/write_only/write_only.cpp") == True
+    assert os.path.isfile("output/write_only/reads_memory.cpp") == False

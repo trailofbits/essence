@@ -29,8 +29,7 @@ namespace handsanitizer {
         Type(TYPE_NAMES typeName, unsigned int const intSize): type(typeName), integerSize(intSize){};
         Type(TYPE_NAMES typeName, Type* pointerElementType): type(typeName), pointerElementType(pointerElementType){};
         Type(TYPE_NAMES typeName, Type* arrayElementType, uint64_t arraySize):type(typeName), arrayElementType(arrayElementType), arraySize(arraySize){};
-        Type(TYPE_NAMES typeName, std::string structName, std::vector<NamedVariable> members, bool isUnion = false): type(typeName), structName(structName), structMembers(members), structIsUnion(isUnion){};
-
+        Type(TYPE_NAMES typeName, std::string structName, std::vector<NamedVariable> members, bool isUnion = false): type(typeName), structName(structName), structMembers(members), structIsUnion(isUnion){}
 
         // scalar values
         bool isVoidTy() { return type == TYPE_NAMES::VOID;};
@@ -69,15 +68,9 @@ namespace handsanitizer {
 
 
     struct NamedVariable{
-        NamedVariable(std::string name, Type* type){
-            this->name = name;
-            this->type = type;
-            this->passByVal = passByVal;
-        };
-    public:
-        Type *type;
+        NamedVariable(std::string name, Type* type): name(name), type(type){};
+        Type* type;
         std::string name;
-        bool passByVal;
         Type* getType() { return this->type;};
         std::string getName() { return this->name;};
     };

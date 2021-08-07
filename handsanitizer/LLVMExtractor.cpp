@@ -24,7 +24,7 @@ namespace handsanitizer {
             handsan_mod.name = "extracted_module";
         handsan_mod.globals = this->ExtractGlobalVariables(handsan_mod, mod);
         handsan_mod.functions = this->ExtractFunctions(handsan_mod, mod);
-        std::vector<Type *> user_types;
+        std::vector<Type*> user_types;
         for (auto &t: this->user_defined_types)
             user_types.push_back(t.first);
 
@@ -180,46 +180,40 @@ namespace handsanitizer {
             return "write_only";
     }
 
-    Type *ModuleFromLLVMModuleFactory::ConvertLLVMTypeToHandsanitizerType(Module *module, llvm::Type *type) {
-        Type *newType = nullptr;
-
+    Type* ModuleFromLLVMModuleFactory::ConvertLLVMTypeToHandsanitizerType(Module *module, llvm::Type *type) {
         if (type->isVoidTy())
-            newType = new Type(TYPE_NAMES::VOID);
+            return new Type(TYPE_NAMES::VOID);
 
         if (type->isIntegerTy())
-            newType = new Type(TYPE_NAMES::INTEGER, type->getIntegerBitWidth());
+            return new Type(TYPE_NAMES::INTEGER, type->getIntegerBitWidth());
 
         if (type->isFloatTy())
-            newType = new Type(TYPE_NAMES::FLOAT);
+            return new Type(TYPE_NAMES::FLOAT);
 
         if (type->isDoubleTy())
-            newType = new Type(TYPE_NAMES::DOUBLE);
+            return new Type(TYPE_NAMES::DOUBLE);
 
         if (type->isArrayTy())
-            newType = new Type(TYPE_NAMES::ARRAY,
+            return new Type(TYPE_NAMES::ARRAY,
                                ConvertLLVMTypeToHandsanitizerType(module, type->getArrayElementType()),
                                type->getArrayNumElements());
 
         if (type->isPointerTy())
-            newType = new Type(TYPE_NAMES::POINTER,
+            return new Type(TYPE_NAMES::POINTER,
                                ConvertLLVMTypeToHandsanitizerType(module, type->getPointerElementType()));
 
         if (type->isStructTy()) {
             if (!this->hasStructDefined(*module, type))
                 this->defineStructIfNeeded(*module, type);
-            newType = this->getDefinedStructByLLVMType(*module, type);
+                    return this->getDefinedStructByLLVMType(*module, type);
         }
 
-        if (newType == nullptr) {
-            std::string type_str;
-            llvm::raw_string_ostream rso(type_str);
-            type->print(rso);
+        std::string type_str;
+        llvm::raw_string_ostream rso(type_str);
+        type->print(rso);
 
 
-            throw std::invalid_argument("Could not convert llvm type" + rso.str());
-        }
-
-        return newType;
+        throw std::invalid_argument("Could not convert llvm type" + rso.str());
     }
 
     bool ModuleFromLLVMModuleFactory::functionHasCABI(llvm::Function &f) {
@@ -238,7 +232,7 @@ namespace handsanitizer {
         return false;
     }
 
-    Type *ModuleFromLLVMModuleFactory::getDefinedStructByLLVMType(Module &mod, llvm::Type *type) {
+    Type* ModuleFromLLVMModuleFactory::getDefinedStructByLLVMType(Module &mod, llvm::Type *type) {
         for (auto &user_type : this->user_defined_types) {
             if (user_type.second == type)
                 return user_type.first;
@@ -333,4 +327,6 @@ namespace handsanitizer {
         else
             return "not_supported";
     }
+
+    Type::Type() {}
 }
