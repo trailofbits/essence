@@ -118,27 +118,18 @@ int main(int argc, char** argv){
         else{
 
             for(auto& f : extractedMod.functions){
-                if(buildAllReadNone){
-                    if(f.getPurityName() != "read_none")
-                        continue;
-                }
-                else if (buildAllWriteOnly){
-                    if (f.getPurityName() != "write_only")
-                        continue;
-                }
-                else{
-                    auto functions = program.get<std::vector<std::string>>("functions");
-                    for(auto& input_func_name: functions){
-                        if(std::find_if(extractedMod.functions.begin(), extractedMod.functions.end(),
-                                        [&input_func_name](handsanitizer::Function& extracted_f){ return extracted_f.name == input_func_name;}) == extractedMod.functions.end()){
-                            throw std::invalid_argument("module does not contain function: " + input_func_name);
-                        }
+                auto functions = program.get<std::vector<std::string>>("functions");
+                for(auto& input_func_name: functions){
+                    if(std::find_if(extractedMod.functions.begin(), extractedMod.functions.end(),
+                                    [&input_func_name](handsanitizer::Function& extracted_f){ return extracted_f.name == input_func_name;}) == extractedMod.functions.end()){
+                        throw std::invalid_argument("module does not contain function: " + input_func_name);
+                    }
 
-                    }
-                    if(std::find(functions.begin(), functions.end(), f.name) == functions.end()){
-                        continue; // if functions are specified we only output those, otherwise output all funcs
-                    }
                 }
+                if(std::find(functions.begin(), functions.end(), f.name) == functions.end()){
+                    continue; // if functions are specified we only output those, otherwise output all funcs
+                }
+
 
                 extractedMod.generate_cpp_file_for_function(f, output_dir + "/" + f.name + ".cpp");
                 if(!skipInputTemplate)

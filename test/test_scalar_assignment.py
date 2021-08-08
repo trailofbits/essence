@@ -66,6 +66,17 @@ def test_direct_return_of_structures():
     assert output_json["output"]["a1"] == 97
 
 
+
+
+def test_direct_struct_return_with_nested_definitions():
+    program_output = call_handsanitizer("direct_struct_return_with_nested_definitions")
+
+    output_json = json.loads(program_output)
+    print(json.dumps(output_json, indent=4))
+    assert output_json["output"] == 1
+
+
+
 def test_pointer_array_non_null():
     program_output = call_handsanitizer("pointer_array_assignment_not_null_terminated_test")
 

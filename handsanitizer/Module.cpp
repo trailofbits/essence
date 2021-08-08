@@ -152,13 +152,15 @@ namespace handsanitizer {
             std::vector<std::string> dummy;
             dummy.push_back(a.getName());
 
-            // llvm boxes structs always with a pointer?
-            if (a.type->isPointerTy() && a.type->getPointerElementType()->isStructTy())
-                s << getParserRetrievalForNamedType(jsonInputVariableName, dummy, a.type->getPointerElementType(),
-                                                    isForGlobals);
-            else {
+//            // llvm boxes structs always with a pointer?
+//            if (a.type->isPointerTy() && a.type->getPointerElementType()->isStructTy()){
+//                std::cout << "een juicy godver" << std::endl;
+//                s << getParserRetrievalForNamedType(jsonInputVariableName, dummy, a.type->getPointerElementType(),
+//                                                    isForGlobals);
+//            }
+//            else {
                 s << getParserRetrievalForNamedType(jsonInputVariableName, dummy, a.type, isForGlobals);
-            }
+//            }
         }
         return s.str();
     }
@@ -584,10 +586,10 @@ namespace handsanitizer {
     std::string Module::getParserRetrievalForPointersToNonPointers(std::string jsonInputVariableName,
                                                                    std::vector<std::string> prefixes,
                                                                    handsanitizer::Type *type, bool isForGlobals) {
-        if (!type->getPointerElementType()->isIntegerTy(8)) {
-            return getParserRetrievalForPointerToNonCharType(jsonInputVariableName, prefixes, type, isForGlobals);
-        } else { // char behavior
+        if (type->getPointerElementType()->isIntegerTy(8)) { // char behavior
             return getParserRetrievalForPointerToCharType(jsonInputVariableName, prefixes, type, isForGlobals);
+        } else {
+            return getParserRetrievalForPointerToNonCharType(jsonInputVariableName, prefixes, type, isForGlobals);
         }
     }
 
@@ -702,38 +704,45 @@ namespace handsanitizer {
         std::string elTypeName = pointeeType->getCTypeName();
         std::string jsonValue = jsonInputVariableName + joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING);
 
-        std::string argument_name = joinStrings(prefixes, GENERATE_FORMAT_CPP_ADDRESSING);
+        std::string argument_name = joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE);
         if (!isForGlobals)
             output << elTypeName << "* " << argument_name << ";" << std::endl;
 
-        // if its an array
-        output << "if(" << jsonValue << ".is_array()) { " << std::endl;
-        std::string malloced_value = getUniqueTmpCPPVariableNameFor(prefixes);
-        std::string arrSize = jsonInputVariableName + joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING) + ".size()";
+        if(pointeeType->isStructTy()){
+            std::vector<std::string> struct_name = std::vector<std::string>(prefixes);
+            struct_name.push_back(POINTER_DENOTATION);
+            output << getParserRetrievalForStructs(jsonInputVariableName, struct_name, pointeeType, isForGlobals) << std::endl;
+            output << argument_name << " = &" << joinStrings(struct_name, GENERATE_FORMAT_CPP_VARIABLE) << ";" << std::endl;
+        }
+        else{
+            // if its an array
+            output << "if(" << jsonValue << ".is_array()) { " << std::endl;
+            std::string malloced_value = getUniqueTmpCPPVariableNameFor(prefixes);
+            std::string arrSize = jsonInputVariableName + joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING) + ".size()";
 
-        output << elTypeName << "* " << malloced_value << " = (" << elTypeName << "*) malloc(sizeof(" << elTypeName << ") * " << arrSize << ");" << std::endl;
-        output << registerVariableToBeFreed(malloced_value);
+            output << elTypeName << "* " << malloced_value << " = (" << elTypeName << "*) malloc(sizeof(" << elTypeName << ") * " << arrSize << ");" << std::endl;
+            output << registerVariableToBeFreed(malloced_value);
 
-        std::string iterator_name = getUniqueLoopIteratorName();
-        output << "for(int " << iterator_name << " = 0; " << iterator_name << " < " << arrSize << ";" << iterator_name << "++) {" << std::endl;
-        output << malloced_value << "[" << iterator_name << "] = " << jsonValue << "[" << iterator_name << "].get<" << elTypeName << ">();" << std::endl;
-        output << "}" << std::endl; //endfor
+            std::string iterator_name = getUniqueLoopIteratorName();
+            output << "for(int " << iterator_name << " = 0; " << iterator_name << " < " << arrSize << ";" << iterator_name << "++) {" << std::endl;
+            output << malloced_value << "[" << iterator_name << "] = " << jsonValue << "[" << iterator_name << "].get<" << elTypeName << ">();" << std::endl;
+            output << "}" << std::endl; //endfor
 
-        output << argument_name << " = " << malloced_value << ";" << std::endl;
-        output << "}" << std::endl; //end if_array
+            output << argument_name << " = " << malloced_value << ";" << std::endl;
+            output << "}" << std::endl; //end if_array
 
-        // if its a number
-        output << "if(" << jsonValue << ".is_number()){" << std::endl;
-        //cast rvalue in case its a char
-        auto malloc_name = getUniqueTmpCPPVariableNameFor(prefixes);
-        output << elTypeName << "* " << malloc_name << " = (" << elTypeName << "*) malloc(sizeof(" << elTypeName
-               << "));" << std::endl;
-        output << registerVariableToBeFreed(malloc_name);
-        output << malloc_name << "[0] = (" << elTypeName << ")" << jsonValue << ".get<" << elTypeName << ">();"
-               << std::endl;
-        output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = " << malloc_name << ";" << std::endl;
-        output << "}" << std::endl; //end if number
-
+            // if its a number
+            output << "if(" << jsonValue << ".is_number()){" << std::endl;
+            //cast rvalue in case its a char
+            auto malloc_name = getUniqueTmpCPPVariableNameFor(prefixes);
+            output << elTypeName << "* " << malloc_name << " = (" << elTypeName << "*) malloc(sizeof(" << elTypeName
+                   << "));" << std::endl;
+            output << registerVariableToBeFreed(malloc_name);
+            output << malloc_name << "[0] = (" << elTypeName << ")" << jsonValue << ".get<" << elTypeName << ">();"
+                   << std::endl;
+            output << joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << " = " << malloc_name << ";" << std::endl;
+            output << "}" << std::endl; //end if number
+        }
         return output.str();
     }
 

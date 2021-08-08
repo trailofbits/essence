@@ -304,6 +304,7 @@ namespace handsanitizer {
     }
 
     std::string Type::getTypeName() {
+        //TODO convert to switch statement
         if(this->isVoidTy())
             return "void";
         else if(this->isPointerTy())
@@ -327,6 +328,4 @@ namespace handsanitizer {
         else
             return "not_supported";
     }
-
-    Type::Type() {}
 }
