@@ -131,13 +131,16 @@ def essence_build_for_purity_level(bc_file: str, output: str, generate_input_tem
 
 
 def build_functions_for(bc_file: str, output_dir: str, template: bool, func_name: str):
-    if template:
-        subprocess.run([handsan_path, "--build", "-o", output_dir, bc_file, func_name])
-    else:
-        subprocess.run([handsan_path, "--build", "--no-template", "-o", output_dir, bc_file, func_name])
+    extracted_bc_path = get_filepath_in_output_dir(output_dir, bc_file, ".extracted.bc")
+    subprocess.run(["llvm-extract", bc_file, "--recursive", "-o",extracted_bc_path, "--func", func_name])
 
-    output_obj_file_path = get_filepath_in_output_dir(output_dir, bc_file, ".o")
-    subprocess.run(["llc-11", "-filetype=obj", bc_file, "-o", output_obj_file_path])
+    if template:
+        subprocess.run([handsan_path, "--build", "-o", output_dir, extracted_bc_path, func_name])
+    else:
+        subprocess.run([handsan_path, "--build", "--no-template", "-o", output_dir, extracted_bc_path, func_name])
+
+    output_obj_file_path = get_filepath_in_output_dir(output_dir, extracted_bc_path, ".o")
+    subprocess.run(["llc-11", "-filetype=obj", extracted_bc_path, "-o", output_obj_file_path])
 
     func_exec_file_path = get_filepath_in_output_dir(output_dir, func_name, "")
     func_generated_cpp_file_path = get_filepath_in_output_dir(output_dir, func_name, ".cpp")
@@ -145,5 +148,8 @@ def build_functions_for(bc_file: str, output_dir: str, template: bool, func_name
     subprocess.run(
         ["clang++", "-std=c++17", output_obj_file_path, func_generated_cpp_file_path, "-o",
          func_exec_file_path])
-# TODO later
+
+    subprocess.run(["rm", extracted_bc_path, output_obj_file_path])
+
+    # TODO later
 # def essence_build_from_spec(bc_file: str):

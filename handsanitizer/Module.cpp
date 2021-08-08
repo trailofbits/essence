@@ -123,7 +123,7 @@ namespace handsanitizer {
     std::string Module::getGlobalDeclarationsText() {
         std::stringstream s;
         for (auto &global : this->globals) {
-            s << "extern " << global.getType()->getCTypeName() << " " << global.getName() << ";" << std::endl;
+            s << "" << global.getType()->getCTypeName() << " " << global.getName() << ";" << std::endl;
         }
         return s.str();
     }

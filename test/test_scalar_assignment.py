@@ -4,7 +4,7 @@ import argparse
 import json
 from itertools import groupby
 from pathlib import Path
-from essence.cli import essence_build_read_none, essence_build_write_only
+from essence.cli import essence_build_read_none, essence_build_write_only, build_functions_for
 import shutil
 
 # empty directory first as some our test depend on the (non)existence of files
@@ -12,21 +12,17 @@ shutil.rmtree("output")
 Path("output").mkdir(parents=True, exist_ok=True)
 
 handsan_path = "../HandSanitizer"
+output_dir = "output"
 
 
 # same input for all is name of bc
 
 def call_handsanitizer(function_to_test):
     bc_file = function_to_test + ".bc"
-    output_dir = "output/"
-    target = output_dir + function_to_test
+    build_functions_for(bc_file, output_dir, False, function_to_test)
 
-    subprocess.run(["llc", "-filetype=obj", bc_file, "-o", target + ".o"])
-    print("got: ")
-    print(subprocess.run([handsan_path, "--build", "--no-template", "-o", "output", bc_file, function_to_test]))
-    print("clanging: ")
+    target = os.path.join(output_dir, function_to_test)
 
-    print(subprocess.run(["clang++", "-std=c++17", target + ".o", target + ".cpp", "-o", target]))
     return subprocess.run(["./" + target, function_to_test + ".json"], capture_output=True).stdout
 
 
@@ -145,3 +141,23 @@ def test_build_read_none_only_builds_write_only_functions():
     assert os.path.isfile("output/write_only/read_none.cpp") == False
     assert os.path.isfile("output/write_only/write_only.cpp") == True
     assert os.path.isfile("output/write_only/reads_memory.cpp") == False
+
+
+
+def test_essence_strips_out_unused_globals():
+    test_file = "stripped_function_test.bc"
+    build_functions_for(test_file, output_dir, True, "stripped_function")
+    target_json_path = os.path.join(output_dir, 'stripped_function.json')
+    print(target_json_path)
+    with open(target_json_path, 'r') as j:
+        text = j.read()
+        global_used_present = False
+        global_unused_present = False
+        if "global_used" in text:
+            global_used_present = True
+
+        if "global_unused" in text:
+            global_unused_present = True
+
+        assert global_used_present == True
+        assert global_unused_present == False
