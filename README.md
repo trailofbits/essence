@@ -122,5 +122,6 @@ typedef struct B{
 
 ### Functions that write to the same locations as essence
 Essence tries to expose all global variables used in an bitcode module.
-If this module happens to include stdio then it will redeclare the parts of causing the generated code to not compile
-This is only an issue for `write_only` 
+If an input module uses variables which also get used internally for essence (like stdio) then we run into the issue that we cannot generate binaries properly anymore.
+
+Note that since essence extracts functions with their used globals beforehand, it is possible to generate a binary for a function  which does not yield a conflict, while there simultaneously exists functions which do generate conflict.
