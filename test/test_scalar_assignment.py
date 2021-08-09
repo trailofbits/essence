@@ -14,8 +14,30 @@ Path("output").mkdir(parents=True, exist_ok=True)
 handsan_path = "../HandSanitizer"
 output_dir = "output"
 
+subprocess.run(["clang", "-c", "-emit-llvm", "-fno-discard-value-names", "*.c"], shell=True)
+subprocess.run(["clang", "-c", "-emit-llvm", "read_none_write_only_reads_memory_test.c", "-O1"])
+
+
 
 # same input for all is name of bc
+
+def test_build_read_none_only_builds_read_none_functions():
+    test_file = "read_none_write_only_reads_memory_test.bc"
+    essence_build_read_none(test_file, "output/read_none", False)
+    assert os.path.isfile("output/read_none/read_none.cpp") == True
+    assert os.path.isfile("output/read_none/write_only.cpp") == False
+    assert os.path.isfile("output/read_none/reads_memory.cpp") == False
+
+
+def test_build_read_none_only_builds_write_only_functions():
+    test_file = "read_none_write_only_reads_memory_test.bc"
+    essence_build_write_only(test_file, "output/write_only", False)
+    assert os.path.isfile("output/write_only/read_none.cpp") == False
+    assert os.path.isfile("output/write_only/write_only.cpp") == True
+    assert os.path.isfile("output/write_only/reads_memory.cpp") == False
+
+
+
 
 def call_handsanitizer(function_to_test):
     bc_file = function_to_test + ".bc"
@@ -126,21 +148,6 @@ def test_pointer_global_assignment():
     print(json.dumps(output_json, indent=4))
     assert output_json["globals"]["int_pointer_global_val_post_call"] == 1
 
-
-def test_build_read_none_only_builds_read_none_functions():
-    test_file = "read_none_write_only_reads_memory_test.bc"
-    essence_build_read_none(test_file, "output/read_none", False)
-    assert os.path.isfile("output/read_none/read_none.cpp") == True
-    assert os.path.isfile("output/read_none/write_only.cpp") == False
-    assert os.path.isfile("output/read_none/reads_memory.cpp") == False
-
-
-def test_build_read_none_only_builds_write_only_functions():
-    test_file = "read_none_write_only_reads_memory_test.bc"
-    essence_build_write_only(test_file, "output/write_only", False)
-    assert os.path.isfile("output/write_only/read_none.cpp") == False
-    assert os.path.isfile("output/write_only/write_only.cpp") == True
-    assert os.path.isfile("output/write_only/reads_memory.cpp") == False
 
 
 

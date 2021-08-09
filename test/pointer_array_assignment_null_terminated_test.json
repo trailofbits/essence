@@ -1,0 +1,14 @@
+{
+  "globals": {
+    "second_char_of_array": 255,
+    "third_char_of_array": 255,
+    "fifth_char_of_array": 255,
+    "sixth_char_of_array": 255,
+    "seventh_char_of_array": 255,
+    "eight_char_of_array": 255
+  },
+  "arguments": {
+    "barvictor": ["ab", "cd", null, "e", 102, null]
+  }
+}
+

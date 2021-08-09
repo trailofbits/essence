@@ -1,0 +1,19 @@
+{
+  "globals": {
+    "a": 80,
+    "b": 81,
+    "c": 82,
+    "d": 83,
+    "e": 84.1,
+    "aa": 85.2
+  },
+  "arguments": {
+    "barvictor": 91,
+    "judyerin": 92,
+    "carloserin": 93,
+    "levipanda": 94,
+    "verabar": 5.2,
+    "shadyslim": 6.2
+  }
+}
+

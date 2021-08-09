@@ -145,11 +145,11 @@ def build_functions_for(bc_file: str, output_dir: str, template: bool, func_name
     func_exec_file_path = get_filepath_in_output_dir(output_dir, func_name, "")
     func_generated_cpp_file_path = get_filepath_in_output_dir(output_dir, func_name, ".cpp")
 
-    subprocess.run(
+    print(subprocess.run(
         ["clang++", "-std=c++17", output_obj_file_path, func_generated_cpp_file_path, "-o",
-         func_exec_file_path])
+         func_exec_file_path, "-I../argparse/include/"]))
 
-    subprocess.run(["rm", extracted_bc_path, output_obj_file_path])
+    # subprocess.run(["rm", extracted_bc_path, output_obj_file_path])
 
     # TODO later
 # def essence_build_from_spec(bc_file: str):

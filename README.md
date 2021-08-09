@@ -19,7 +19,8 @@ Our focus is primarly "pure" functions. There are two major categories of pure f
 ## Install instructions
 
 ```shell
-$ git clone https://github.com/trailofbits/essence
+$ sudo apt install nlohmann-json3-dev
+$ git clone --recursive https://github.com/trailofbits/essence
 $ cd essence
 $ cmake CMakeLists.txt
 $ make 
