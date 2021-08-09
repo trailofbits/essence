@@ -17,31 +17,9 @@ output_dir = "output"
 subprocess.run(["clang", "-c", "-emit-llvm", "-fno-discard-value-names", "*.c"], shell=True)
 subprocess.run(["clang", "-c", "-emit-llvm", "read_none_write_only_reads_memory_test.c", "-O1"])
 
-
-
-# same input for all is name of bc
-
-def test_build_read_none_only_builds_read_none_functions():
-    test_file = "read_none_write_only_reads_memory_test.bc"
-    essence_build_read_none(test_file, "output/read_none", False)
-    assert os.path.isfile("output/read_none/read_none.cpp") == True
-    assert os.path.isfile("output/read_none/write_only.cpp") == False
-    assert os.path.isfile("output/read_none/reads_memory.cpp") == False
-
-
-def test_build_read_none_only_builds_write_only_functions():
-    test_file = "read_none_write_only_reads_memory_test.bc"
-    essence_build_write_only(test_file, "output/write_only", False)
-    assert os.path.isfile("output/write_only/read_none.cpp") == False
-    assert os.path.isfile("output/write_only/write_only.cpp") == True
-    assert os.path.isfile("output/write_only/reads_memory.cpp") == False
-
-
-
-
 def call_handsanitizer(function_to_test):
     bc_file = function_to_test + ".bc"
-    build_functions_for(bc_file, output_dir, False, function_to_test)
+    build_functions_for(bc_file, output_dir, True, function_to_test)
 
     target = os.path.join(output_dir, function_to_test)
 
@@ -150,6 +128,15 @@ def test_pointer_global_assignment():
 
 
 
+def test_pointer_in_struct():
+    program_output = call_handsanitizer("pointer_in_struct_test")
+
+    output_json = json.loads(program_output)
+    print(json.dumps(output_json, indent=4))
+    assert output_json["output"] == 5
+
+
+
 
 def test_essence_strips_out_unused_globals():
     test_file = "stripped_function_test.bc"
@@ -168,3 +155,19 @@ def test_essence_strips_out_unused_globals():
 
         assert global_used_present == True
         assert global_unused_present == False
+
+
+def test_build_read_none_only_builds_read_none_functions():
+    test_file = "read_none_write_only_reads_memory_test.bc"
+    essence_build_read_none(test_file, "output/read_none", False)
+    assert os.path.isfile("output/read_none/read_none.cpp") == True
+    assert os.path.isfile("output/read_none/write_only.cpp") == False
+    assert os.path.isfile("output/read_none/reads_memory.cpp") == False
+
+
+def test_build_read_none_only_builds_write_only_functions():
+    test_file = "read_none_write_only_reads_memory_test.bc"
+    essence_build_write_only(test_file, "output/write_only", False)
+    assert os.path.isfile("output/write_only/read_none.cpp") == False
+    assert os.path.isfile("output/write_only/write_only.cpp") == True
+    assert os.path.isfile("output/write_only/reads_memory.cpp") == False
