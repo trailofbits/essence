@@ -10,6 +10,7 @@ include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
 link_directories(${LLVM_LIBRARY_DIRS})
 
 find_package(nlohmann_json CONFIG REQUIRED)
+include_directories(argparse/include)
 
 
 
