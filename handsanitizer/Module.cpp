@@ -6,8 +6,6 @@
 #include <fstream>
 #include <iomanip>
 #include "Module.h"
-#include "../include/name_generation.hpp"
-#include "../include/code_generation.hpp"
 
 namespace handsanitizer {
     const std::string CPP_ADDRESSING_DELIMITER = ".";

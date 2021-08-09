@@ -50,8 +50,6 @@
 #include "llvm/Transforms/Utils.h"
 #include <filesystem>
 
-#include "../include/name_generation.hpp"
-#include "../include/code_generation.hpp"
 #include "../include/handsan.hpp"
 #include "LLVMExtractor.hpp"
 #include <argparse/argparse.hpp>
