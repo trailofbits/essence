@@ -33,7 +33,7 @@ $ pip install -e ./
 This command lists the functions in a bitcode file, together with their signature and purity level 
 
 
-#### essence --build [--output/-o outputdir] [--no-template] <input.bc> f1 f2 
+#### essence --build [--output/-o outputdir] [--no-template] <input.bc> f1 f2 ...
 This command will build an executable for f1 and f2.
 The output directory can be specified, as well as that the json input template should not be (re)generated to preserve arguments inside the template file.
 
