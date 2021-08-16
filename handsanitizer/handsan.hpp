@@ -1,9 +1,4 @@
-//
-// Created by sabastiaan on 19-07-21.
-//
-
-#ifndef HANDSANITIZER_HANDSAN_HPP
-#define HANDSANITIZER_HANDSAN_HPP
+#pragma once 
 
 #include <sstream>
 #include "llvm/IR/Type.h"
@@ -112,8 +107,3 @@ namespace handsanitizer {
         std::string getTypedArgumentNames();
     };
 }
-
-
-
-#endif //HANDSANITIZER_HANDSAN_HPP
-
