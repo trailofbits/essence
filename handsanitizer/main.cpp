@@ -1,6 +1,3 @@
-//
-// Created by sabastiaan on 22-06-21.
-//
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/DebugInfo.h"
@@ -50,15 +47,16 @@
 #include "llvm/Transforms/Utils.h"
 #include <filesystem>
 
-#include "../include/handsan.hpp"
+#include "handsan.hpp"
 #include "LLVMExtractor.hpp"
 #include <argparse/argparse.hpp>
+#include "SpecificationPrinter.h"
 
 static llvm::ExitOnError ExitOnErr;
-//
-//static llvm::cl::opt<std::string>
-//        InputFilename(llvm::cl::Positional, llvm::cl::desc("<input bitcode>"), llvm::cl::init("-"));
 
+
+void throwIfSpecifiedFunctionsDoNotExistInModule(std::vector<handsanitizer::FunctionCallerGenerator> &extractedFunctions,
+                                                 std::vector<std::string> &functions);
 
 int main(int argc, char** argv){
     argparse::ArgumentParser program("handsanitizer", "0.1.0");
@@ -82,7 +80,6 @@ int main(int argc, char** argv){
     llvm::InitLLVM X(argc, argv);
     ExitOnErr.setBanner(std::string(argv[0]) + ": error: ");
     llvm::LLVMContext Context;
-//    llvm::cl::ParseCommandLineOptions(argc, argv, "llvm .bc -> .ll disassembler\n");
 
     std::string inputFilename = program.get("bitcodeFile");
     std::unique_ptr<llvm::MemoryBuffer> MB = ExitOnErr(errorOrToExpected(llvm::MemoryBuffer::getFileOrSTDIN(inputFilename)));
@@ -100,40 +97,32 @@ int main(int argc, char** argv){
     for(auto& llvm_mod : IF.Mods){
         std::unique_ptr<llvm::Module> mod = ExitOnErr(llvm_mod.parseModule(Context));
 
-        auto extractedMod = factory.ExtractModule(Context, mod);
+        auto extractedFunctions = factory.ExtractAllFunctionCallerGenerators(Context, mod);
         if(buildFlag == false){
-            std::filesystem::path p(inputFilename);
-            p.replace_extension("");
-            auto newFileName = p.filename().string();
-            auto outputPath = std::filesystem::path();
-            outputPath.append(output_dir);
-            outputPath.append(newFileName);
-            outputPath.replace_extension("spec.json");
-            auto outputModFilename = outputPath.string();
-
-            extractedMod.generate_json_module_specification(outputModFilename);
+            handsanitizer::SpecificationPrinter specPrinter(extractedFunctions);
+            specPrinter.printSpecification(output_dir, inputFilename);
         }
         else{
-
-            for(auto& f : extractedMod.functions){
+            for(auto& f : extractedFunctions){
                 auto functions = program.get<std::vector<std::string>>("functions");
-                for(auto& input_func_name: functions){
-                    if(std::find_if(extractedMod.functions.begin(), extractedMod.functions.end(),
-                                    [&input_func_name](handsanitizer::Function& extracted_f){ return extracted_f.name == input_func_name;}) == extractedMod.functions.end()){
-                        throw std::invalid_argument("module does not contain function: " + input_func_name);
-                    }
+                if(functions.size() > 0)
+                    throwIfSpecifiedFunctionsDoNotExistInModule(extractedFunctions, functions);
 
-                }
-                if(std::find(functions.begin(), functions.end(), f.name) == functions.end()){
-                    continue; // if functions are specified we only output those, otherwise output all funcs
-                }
-
-
-                extractedMod.generate_cpp_file_for_function(f, output_dir + "/" + f.name + ".cpp");
+                f.generate_cpp_file_for_function(output_dir + "/" + f.function->name + ".cpp");
                 if(!skipInputTemplate)
-                    extractedMod.generate_json_input_template_file(f, output_dir + "/" + f.name + ".json");
+                    f.generate_json_input_template_file(output_dir + "/" + f.function->name + ".json");
             }
         }
     }
     return 0;
+}
+
+void throwIfSpecifiedFunctionsDoNotExistInModule(std::vector<handsanitizer::FunctionCallerGenerator> &extractedFunctions,
+                                                 std::vector<std::string> &functions) {
+    for(auto& input_func_name: functions){
+        if(std::find_if(extractedFunctions.begin(), extractedFunctions.end(),
+                        [&input_func_name](handsanitizer::FunctionCallerGenerator& extracted_fcg){ return extracted_fcg.function->name == input_func_name;}) == extractedFunctions.end()){
+            throw std::invalid_argument("module does not contain function: " + input_func_name);
+        }
+    }
 }

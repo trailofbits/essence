@@ -7,6 +7,9 @@ from itertools import groupby
 from pathlib import Path
 
 
+# TODO: Handle possible functions called main in essence not handsanitizer
+
+
 def get_filepath_in_output_dir(output_dir: str, input_file: str, ext: str):
     input_path = Path(input_file)
     stem = input_path.stem
@@ -144,9 +147,10 @@ def build_functions_for(bc_file: str, output_dir: str, template: bool, func_name
     func_exec_file_path = get_filepath_in_output_dir(output_dir, func_name, "")
     func_generated_cpp_file_path = get_filepath_in_output_dir(output_dir, func_name, ".cpp")
 
-    print(subprocess.run(
+    argparse_include_path = dirname + "/../../argparse/include"
+    subprocess.run(
         ["clang++", "-std=c++17", output_obj_file_path, func_generated_cpp_file_path, "-o",
-         func_exec_file_path, "-I../argparse/include/"]))
+         func_exec_file_path, "-I" + argparse_include_path])
 
     # subprocess.run(["rm", extracted_bc_path, output_obj_file_path])
 

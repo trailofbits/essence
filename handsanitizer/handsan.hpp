@@ -5,6 +5,7 @@
 #ifndef HANDSANITIZER_HANDSAN_HPP
 #define HANDSANITIZER_HANDSAN_HPP
 
+#include <sstream>
 #include "llvm/IR/Type.h"
 #include "llvm/IR/DerivedTypes.h"
 
@@ -65,7 +66,7 @@ namespace handsanitizer {
         bool structIsUnion = false;
     };
 
-
+    std::string getUnrolledTypeAsJson(Type& type);
 
     struct NamedVariable{
         NamedVariable(std::string name, Type* type): name(name), type(type){};
@@ -74,6 +75,8 @@ namespace handsanitizer {
         Type* getType() { return this->type;};
         std::string getName() { return this->name;};
     };
+
+
 
 
     struct GlobalVariable : NamedVariable {

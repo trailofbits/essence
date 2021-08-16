@@ -1,7 +1,8 @@
+#include <iostream>
 #include <sstream>
 #include "LLVMExtractor.hpp"
-#include "../include/handsan.hpp"
-#include "Module.h"
+#include "handsan.hpp"
+#include "FunctionCallerGenerator.h"
 
 
 static llvm::ExitOnError ExitOnErr;
@@ -11,34 +12,51 @@ std::string getNameForStructMember(int index) {
 }
 
 namespace handsanitizer {
-    Module
-    ModuleFromLLVMModuleFactory::ExtractModule(llvm::LLVMContext &context, std::unique_ptr<llvm::Module> const &mod) {
-        Module handsan_mod;
+    std::vector<FunctionCallerGenerator>
+    ModuleFromLLVMModuleFactory::ExtractAllFunctionCallerGenerators(llvm::LLVMContext &context, std::unique_ptr<llvm::Module> const &mod) {
+        std::vector<FunctionCallerGenerator> fcgs;
+        for(auto& function : mod->functions()){
+            this->defined_llvm_types.clear();
 
-        //TODO set this to input name?
-        if(mod->getName() != "")
-            handsan_mod.name = mod->getName();
-        else
-            handsan_mod.name = "extracted_module";
-        handsan_mod.globals = this->ExtractGlobalVariables(handsan_mod, mod);
-        handsan_mod.functions = this->ExtractFunctions(handsan_mod, mod);
-        std::vector<Type*> user_types;
-        for (auto &t: this->user_defined_types)
-            user_types.push_back(t.first);
+            if(!functionHasCABI(function))
+                continue;
 
-        handsan_mod.user_defined_types = user_types; // type definitions are done implicitly during conversion
-        return handsan_mod;
+            std::shared_ptr<DeclarationManager> declarationManager = std::make_shared<DeclarationManager>();
+            DeclareAllCustomTypesInDeclarationManager(declarationManager, mod);
+            DeclareGlobalsInManager(declarationManager, mod);
+            std::unique_ptr<Function> f = ExtractFunction(declarationManager, function);
+
+            // make sure no names can be generated that are also used as function names
+            for(auto& f : mod->functions())
+                if(f.hasName())
+                    declarationManager->addDeclaration(f.getName().str());
+
+            fcgs.push_back( FunctionCallerGenerator(std::move(f), declarationManager));
+        }
+
+        return fcgs;
     }
 
-    void ModuleFromLLVMModuleFactory::defineStructIfNeeded(Module &mod, llvm::Type *type) {
-        if (this->hasStructDefined(mod, type))
+    void ModuleFromLLVMModuleFactory::defineStructIfNeeded(std::shared_ptr<DeclarationManager> declarationManager, llvm::Type *type) {
+        if(type->isPointerTy())
+            defineStructIfNeeded(declarationManager, type->getPointerElementType());
+
+        std::string type_str;
+        llvm::raw_string_ostream rso(type_str);
+        type->print(rso);
+
+        if(type->isStructTy() == false)
             return;
+
+        if (this->hasStructDefined(declarationManager, type))
+            return;
+
 
         std::vector<NamedVariable> members;
         for (int i = 0; i < type->getStructNumElements(); i++) {
             llvm::Type *childType = type->getStructElementType(i);
             auto childName = getNameForStructMember(i);
-            auto childMemType = ConvertLLVMTypeToHandsanitizerType(&mod, childType);
+            auto childMemType = ConvertLLVMTypeToHandsanitizerType(declarationManager, childType);
             members.push_back(NamedVariable(childName, childMemType));
         }
 
@@ -46,17 +64,17 @@ namespace handsanitizer {
         if (type->getStructName().find("union.") != std::string::npos)
             isUnion = true;
 
-        std::string structName = getStructNameFromLLVMType(mod, type);
+        std::string structName = getStructNameFromLLVMType(declarationManager, type);
 
-        //TODO add a case for when the struct has no name by it self as can happen for return types
         Type *t = new Type(TYPE_NAMES::STRUCT, structName, members, isUnion);
-        this->user_defined_types.push_back(std::pair<Type *, llvm::Type *>(t, type));
+        this->defined_llvm_types.push_back(std::pair<Type *, llvm::Type *>(t, type));
     }
 
-    std::string ModuleFromLLVMModuleFactory::getStructNameFromLLVMType(Module& mod, const llvm::Type *type) const {
+    std::string ModuleFromLLVMModuleFactory::getStructNameFromLLVMType(
+            std::shared_ptr<DeclarationManager> declarationManager, const llvm::Type *type) const {
         std::string structName = type->getStructName().str();
         if(structName == "")
-            structName = mod.getUniqueTmpCPPVariableNameFor("anon_struct");
+            structName = declarationManager->getUniqueTmpCPPVariableNameFor("anon_struct");
         else if (structName.find("struct.") != std::string::npos)
             structName = structName.replace(0, 7, ""); //removes struct. prefix
 
@@ -66,43 +84,30 @@ namespace handsanitizer {
         return structName;
     }
 
-    std::vector<Function>
-    ModuleFromLLVMModuleFactory::ExtractFunctions(Module &mod, std::unique_ptr<llvm::Module> const &llvm_mod) {
-        std::vector<Function> funcs;
-        for (auto &f : llvm_mod->functions()) {
-            //TODO incorperate a setting for this such that we can still test
-//            if (!this->functionHasCABI(f))
-//                continue;
+    std::unique_ptr<Function>
+    ModuleFromLLVMModuleFactory::ExtractFunction(std::shared_ptr<DeclarationManager> declarationManager, llvm::Function& function) {
+        std::string fname;
+        if (function.hasName())
+            fname = function.getName();
+        else
+            fname = declarationManager->getUniqueTmpCPPVariableNameFor();
 
-            std::string fname;
-            if (f.hasName()){
-                fname = f.getName();
-                if(fname == "main")
-                    continue;
-            }
-            else
-                fname = mod.getUniqueTmpCPPVariableNameFor();
+        std::vector<handsanitizer::Argument> args_of_func = ExtractArguments(declarationManager, function);
+        Type *retType = getReturnType(function, args_of_func, declarationManager);
 
-            std::vector<handsanitizer::Argument> args_of_func = ExtractArguments(mod, f);
-            Type *retType = getReturnType(f, args_of_func, mod);
+        // TODO instead of hacking the removal of an sret we should fix generation to consider sret args
+        args_of_func.erase(std::remove_if( args_of_func.begin(), args_of_func.end(), [](const Argument& arg) {
+                    return arg.isSRet;
+                }), args_of_func.end());
+        Purity p = this->getPurityOfFunction(function);
 
-            // TODO instead of hacking the removal of an sret we should fix generation to consider sret args
-            args_of_func.erase(std::remove_if( args_of_func.begin(), args_of_func.end(), [](const Argument& arg) {
-                        return arg.isSRet;
-                    }), args_of_func.end());
-            Purity p = this->getPurityOfFunction(f);
-
-
-            Function extracted_f(fname, retType, args_of_func, p);
-            funcs.push_back(extracted_f);
-        }
-        return funcs;
+        return std::make_unique<Function>(fname, retType, args_of_func, p);
     }
 
     Type *
     ModuleFromLLVMModuleFactory::getReturnType(const llvm::Function &f,
                                                std::vector<handsanitizer::Argument> &args_of_func,
-                                               Module &mod) {
+                                               std::shared_ptr<DeclarationManager> declarationManager) {
         Type* retType;
         bool sret = false;
         for(auto& arg : args_of_func)
@@ -111,7 +116,7 @@ namespace handsanitizer {
                 sret = true;
             }
         if(!sret)
-          retType = ConvertLLVMTypeToHandsanitizerType(&mod, f.getReturnType());
+          retType = ConvertLLVMTypeToHandsanitizerType(declarationManager, f.getReturnType());
         return retType;
     }
 
@@ -119,7 +124,6 @@ namespace handsanitizer {
         Purity p;
         if (f.doesNotAccessMemory())
             p = Purity::READ_NONE;
-
         else if (f.doesNotReadMemory())
             p = Purity::WRITE_ONLY;
         else
@@ -128,25 +132,24 @@ namespace handsanitizer {
     }
 
 
-    std::vector<GlobalVariable> ModuleFromLLVMModuleFactory::ExtractGlobalVariables(Module &hand_mod,
-                                                                                    std::unique_ptr<llvm::Module> const &llvm_mod) {
+    void ModuleFromLLVMModuleFactory::DeclareGlobalsInManager(std::shared_ptr<DeclarationManager> declarationManager,
+                                                              std::unique_ptr<llvm::Module> const &llvm_mod) {
         std::vector<handsanitizer::GlobalVariable> globals;
         for (auto &global : llvm_mod->global_values()) {
-            // TODO: Should figure out what checks actually should be in here
-            if (!global.getType()->isFunctionTy() &&
-                !(global.getType()->isPointerTy() && global.getType()->getPointerElementType()->isFunctionTy()) &&
-                !global.isPrivateLinkage(global.getLinkage()) &&
-                !global.getType()->isMetadataTy() &&
-                global.isDSOLocal()) {
-
-                // globals are always pointers in llvm
-                auto globalType = this->ConvertLLVMTypeToHandsanitizerType(&hand_mod, global.getType()->getPointerElementType());
-                GlobalVariable globalVariable(global.getName().str(), // TODO .str
-                                              globalType);
-                globals.push_back(globalVariable);
+            if (shouldGlobalBeIncluded(global)) {
+                auto globalType = this->ConvertLLVMTypeToHandsanitizerType(declarationManager, global.getType()->getPointerElementType());
+                GlobalVariable globalVariable(global.getName().str(), globalType);
+                declarationManager->addDeclaration(globalVariable);
             }
         }
-        return globals;
+    }
+
+    bool ModuleFromLLVMModuleFactory::shouldGlobalBeIncluded(const llvm::GlobalValue &global) const {
+        return !global.getType()->isFunctionTy() &&
+                       !(global.getType()->isPointerTy() && global.getType()->getPointerElementType()->isFunctionTy()) &&
+                       !global.isPrivateLinkage(global.getLinkage()) &&
+                       !global.getType()->isMetadataTy() &&
+                       global.isDSOLocal();
     }
 
     Function::Function(const std::string &name, Type *retType, std::vector<Argument> arguments, Purity purity)
@@ -178,40 +181,42 @@ namespace handsanitizer {
             return "write_only";
     }
 
-    Type* ModuleFromLLVMModuleFactory::ConvertLLVMTypeToHandsanitizerType(Module *module, llvm::Type *type) {
+    Type* ModuleFromLLVMModuleFactory::ConvertLLVMTypeToHandsanitizerType(std::shared_ptr<DeclarationManager> declarationManager, llvm::Type *type) {
         if (type->isVoidTy())
             return new Type(TYPE_NAMES::VOID);
 
-        if (type->isIntegerTy())
+        else if (type->isIntegerTy())
             return new Type(TYPE_NAMES::INTEGER, type->getIntegerBitWidth());
 
-        if (type->isFloatTy())
+        else if (type->isFloatTy())
             return new Type(TYPE_NAMES::FLOAT);
 
-        if (type->isDoubleTy())
+        else if (type->isDoubleTy())
             return new Type(TYPE_NAMES::DOUBLE);
 
-        if (type->isArrayTy())
+        else if (type->isArrayTy())
             return new Type(TYPE_NAMES::ARRAY,
-                               ConvertLLVMTypeToHandsanitizerType(module, type->getArrayElementType()),
+                               ConvertLLVMTypeToHandsanitizerType(declarationManager, type->getArrayElementType()),
                                type->getArrayNumElements());
 
-        if (type->isPointerTy())
+        else if (type->isPointerTy())
             return new Type(TYPE_NAMES::POINTER,
-                               ConvertLLVMTypeToHandsanitizerType(module, type->getPointerElementType()));
+                               ConvertLLVMTypeToHandsanitizerType(declarationManager, type->getPointerElementType()));
 
-        if (type->isStructTy()) {
-            if (!this->hasStructDefined(*module, type))
-                this->defineStructIfNeeded(*module, type);
-                    return this->getDefinedStructByLLVMType(*module, type);
+        else if (type->isStructTy()) {
+            if (!this->hasStructDefined(declarationManager, type))
+                this->defineStructIfNeeded(declarationManager, type);
+            return this->getDefinedStructByLLVMType(declarationManager, type);
         }
 
-        std::string type_str;
-        llvm::raw_string_ostream rso(type_str);
-        type->print(rso);
+        else{
+            std::string type_str;
+            llvm::raw_string_ostream rso(type_str);
+            type->print(rso);
 
 
-        throw std::invalid_argument("Could not convert llvm type" + rso.str());
+            throw std::invalid_argument("Could not convert llvm type" + rso.str());
+        }
     }
 
     bool ModuleFromLLVMModuleFactory::functionHasCABI(llvm::Function &f) {
@@ -222,44 +227,73 @@ namespace handsanitizer {
         return true;
     }
 
-    bool ModuleFromLLVMModuleFactory::hasStructDefined(Module &mod, llvm::Type *type) {
-        for (auto &user_type : this->user_defined_types) {
+    bool ModuleFromLLVMModuleFactory::hasStructDefined(std::shared_ptr<DeclarationManager> declarationManager, llvm::Type *type) {
+        for (auto &user_type : this->defined_llvm_types) {
             if (user_type.second == type)
                 return true;
         }
         return false;
     }
 
-    Type* ModuleFromLLVMModuleFactory::getDefinedStructByLLVMType(Module &mod, llvm::Type *type) {
-        for (auto &user_type : this->user_defined_types) {
+    Type* ModuleFromLLVMModuleFactory::getDefinedStructByLLVMType(std::shared_ptr<DeclarationManager> declarationManager, llvm::Type *type) {
+        for (auto &user_type : this->defined_llvm_types) {
             if (user_type.second == type)
                 return user_type.first;
         }
         throw std::invalid_argument("Type is not declared yet");
     }
 
-    std::vector<Argument> ModuleFromLLVMModuleFactory::ExtractArguments(Module& mod, llvm::Function &f) {
+    std::vector<Argument> ModuleFromLLVMModuleFactory::ExtractArguments(
+            std::shared_ptr<DeclarationManager> declarationManager, llvm::Function &llvm_mod) {
         std::vector<Argument> args;
 
-        for (auto &arg : f.args()) {
-            if(arg.getType()->isMetadataTy()) // TODO is it a problem that arguments can be meta data?
+        for (auto &arg : llvm_mod.args()) {
+            if(arg.getType()->isMetadataTy())
                 continue;
 
             std::string argName = "";
             if (arg.hasName())
                 argName = arg.getName();
             else
-                argName = mod.getUniqueTmpCPPVariableNameFor();
+                argName = declarationManager->getUniqueTmpCPPVariableNameFor();
 
             Type* argType;
             if(arg.hasByValAttr() && arg.getType()->isPointerTy())
-                argType = ConvertLLVMTypeToHandsanitizerType(&mod, arg.getType()->getPointerElementType());
+                argType = ConvertLLVMTypeToHandsanitizerType(declarationManager, arg.getType()->getPointerElementType());
             else
-                argType = ConvertLLVMTypeToHandsanitizerType(&mod, arg.getType());
+                argType = ConvertLLVMTypeToHandsanitizerType(declarationManager, arg.getType());
 
             args.push_back(Argument(argName, argType, arg.hasByValAttr(), arg.hasStructRetAttr()));
         }
         return args;
+    }
+
+    void ModuleFromLLVMModuleFactory::DeclareAllCustomTypesInDeclarationManager(std::shared_ptr<DeclarationManager> declarationManager,
+                                                                                const std::unique_ptr<llvm::Module> &llvm_mod) {
+        /*
+         * During type creation it is useful to have both the llvm type as well as our internal type representation
+         * Therefore we extract everything first to a local vector containing this mapping and only then declare them
+         * inside the declaration manager
+         */
+        for(auto& global : llvm_mod->globals()){
+            if(shouldGlobalBeIncluded(global)){
+                ConvertLLVMTypeToHandsanitizerType(declarationManager, global.getType()->getElementType()); // all globals are pointers
+            }
+        }
+
+        for(auto& function: llvm_mod->functions()){
+            ConvertLLVMTypeToHandsanitizerType(declarationManager, function.getReturnType());
+
+            for(auto& arg_of_func : function.args()){
+                if(!arg_of_func.getType()->isLabelTy() || !arg_of_func.getType()->isMetadataTy()){
+                    ConvertLLVMTypeToHandsanitizerType(declarationManager, arg_of_func.getType());
+                }
+            }
+        }
+
+        for(auto& udt : this->defined_llvm_types){
+            declarationManager->addDeclaration(udt.first);
+        }
     }
 
 
@@ -267,42 +301,43 @@ namespace handsanitizer {
         if (this->isPointerTy())
             return this->getPointerElementType()->getCTypeName() + "*";
 
-        if (this->integerSize == 1)
+        else if (this->integerSize == 1)
             return "bool";
 
-        if (this->integerSize == 8)
+        else if (this->integerSize == 8)
             return "char";
 
-        if (this->integerSize == 16)
+        else if (this->integerSize == 16)
             return "int16_t";
 
-        if (this->integerSize == 32)
+        else if (this->integerSize == 32)
             return "int32_t";
 
-        if (this->integerSize == 64)
+        else if (this->integerSize == 64)
             return "int64_t";
 
-        if (this->isVoidTy())
+        else if (this->isVoidTy())
             return "void";
 
-        if (this->isFloatTy())
+        else if (this->isFloatTy())
             return "float";
 
-        if (this->isDoubleTy())
+        else if (this->isDoubleTy())
             return "double";
 
-        if (this->isStructTy()) {
+        else if (this->isStructTy()) {
             return this->structName;
         }
 
-        if (this->isArrayTy())
+        else if (this->isArrayTy())
             throw std::invalid_argument("Arrays can't have their names expressed like this");
 
-        return "Not supported";
+        else {
+            throw std::invalid_argument("Type: is not supported");
+        }
     }
 
     std::string Type::getTypeName() {
-        //TODO convert to switch statement
         if(this->isVoidTy())
             return "void";
         else if(this->isPointerTy())
@@ -322,7 +357,6 @@ namespace handsanitizer {
 
         else if(this->isArrayTy())
             return "array";
-
         else
             return "not_supported";
     }
