@@ -1,10 +1,4 @@
-//
-// Created by sabastiaan on 19-07-21.
-//
-
-#ifndef HANDSANITIZER_HANDSAN_HPP
-#define HANDSANITIZER_HANDSAN_HPP
-
+#pragma once
 #include <sstream>
 #include "llvm/IR/Type.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -30,7 +24,10 @@ namespace handsanitizer {
         Type(TYPE_NAMES typeName, unsigned int const intSize): type(typeName), integerSize(intSize){};
         Type(TYPE_NAMES typeName, Type* pointerElementType): type(typeName), pointerElementType(pointerElementType){};
         Type(TYPE_NAMES typeName, Type* arrayElementType, uint64_t arraySize):type(typeName), arrayElementType(arrayElementType), arraySize(arraySize){};
-        Type(TYPE_NAMES typeName, std::string structName, std::vector<NamedVariable> members, bool isUnion = false): type(typeName), structName(structName), structMembers(members), structIsUnion(isUnion){}
+        Type(TYPE_NAMES typeName, std::string structName, bool isUnion = false)
+                : type(typeName), structName(structName), structIsUnion(isUnion){}
+
+
 
         // scalar values
         bool isVoidTy() { return type == TYPE_NAMES::VOID;};
@@ -52,7 +49,15 @@ namespace handsanitizer {
         // struct
         bool isStructTy() { return type == TYPE_NAMES::STRUCT;};
         bool isUnion() { return structIsUnion;};
+        void setMembers(std::vector<NamedVariable> members) {
+            structMembers = members;
+        }
+
         std::vector<NamedVariable> getNamedMembers() { return structMembers;};
+        /*
+         * Denotes whether if following all members of the structure would eventually lead down to the same type
+         */
+        bool isCyclicWithItself;
 
 
     private:
@@ -112,8 +117,3 @@ namespace handsanitizer {
         std::string getTypedArgumentNames();
     };
 }
-
-
-
-#endif //HANDSANITIZER_HANDSAN_HPP
-

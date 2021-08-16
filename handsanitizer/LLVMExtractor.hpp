@@ -23,7 +23,7 @@ namespace handsanitizer{
         void DeclareAllCustomTypesInDeclarationManager(std::shared_ptr<DeclarationManager> declarationManager, std::unique_ptr<llvm::Module> const& llvm_mod);
         void DeclareGlobalsInManager(std::shared_ptr<DeclarationManager> declarationManager, std::unique_ptr<llvm::Module> const& llvm_mod);
         std::vector<Argument> ExtractArguments(std::shared_ptr<DeclarationManager> declarationManager, llvm::Function& llvm_mod);
-        Type* ConvertLLVMTypeToHandsanitizerType(std::shared_ptr<DeclarationManager> declarationManager, llvm::Type* type);
+        Type* ConvertLLVMTypeToHandsanitizerType(std::shared_ptr<DeclarationManager> declarationManager, llvm::Type* type, std::vector<llvm::Type *> &previouslySeenTypes);
 
 
         bool functionHasCABI(llvm::Function &f);
@@ -38,7 +38,9 @@ namespace handsanitizer{
 
         bool hasStructDefined(std::shared_ptr<DeclarationManager> declarationManager, llvm::Type* type);
         Type* getDefinedStructByLLVMType(std::shared_ptr<DeclarationManager> declarationManager, llvm::Type* type);
-        void defineStructIfNeeded(std::shared_ptr<DeclarationManager> declarationManager, llvm::Type* type);
+        void defineStructIfNeeded(std::shared_ptr<DeclarationManager> declarationManager,
+                                  llvm::Type *type,
+                                  std::vector<llvm::Type *> &previouslySeenTypes);
 
         Purity getPurityOfFunction(const llvm::Function &f);
 
