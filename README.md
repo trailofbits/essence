@@ -2,7 +2,7 @@
 
 This project aims to extract functions from llvm bitcode files and generate executables for them.
 Functions can be specified by name and convenient json input templates will be generated in which their arguments (including globals) can be specified.
-
+The project is sub-devided into two components: `Essence` is the python tool which is meant for users and handles all of the end to end functionality, and `Handsanitizer` which is the c++ component which interacts directly with the LLVM bitcode modules and generates neccesary code/templates.
 
 ### About purity
 Our focus is primarly "pure" functions. There are two major categories of pure functions
