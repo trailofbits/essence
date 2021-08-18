@@ -80,13 +80,15 @@ namespace handsanitizer {
 
     std::string FunctionCallerGenerator::getTextForUserDefinedTypes() {
         std::stringstream output;
-        for (auto &custom_type : this->declarationManager->user_defined_types) {
+        std::reverse(declarationManager->user_defined_types.begin(), declarationManager->user_defined_types.end());
+        for (auto &custom_type : declarationManager->user_defined_types ) {
             output << FunctionCallerGenerator::getTextForUserDefinedType(custom_type);
         }
+        std::reverse(declarationManager->user_defined_types.begin(), declarationManager->user_defined_types.end());
         return output.str();
     }
 
-// assumes all dependacies are defined before hand
+    // assumes all dependencies are defined before hand
     std::string FunctionCallerGenerator::getTextForUserDefinedType(Type *type) {
         std::stringstream output;
         output << "typedef struct " << type->getCTypeName() << " {" << std::endl;

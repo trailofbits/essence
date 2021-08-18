@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.19)
 project(HandSanitizer)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY .)
+#set(CMAKE_RUNTIME_OUTPUT_DIRECTORY .)
 
 find_package(LLVM 11 REQUIRED)
 add_definitions(${LLVM_DEFINITIONS})
