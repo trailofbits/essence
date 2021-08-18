@@ -128,21 +128,25 @@ namespace handsanitizer {
         return s.str();
     }
 
-
-    std::string getJsonInputTemplateTextForJsonRvalue(Type &arg) {
+    /*
+     * seen types is an ordered list
+     * with the idea that if we the current type is inside the list
+     * we print out a member of of the path
+     */
+    std::string getJsonInputTemplateTextForJsonRvalue(Type &arg, std::vector<std::pair<Type*, std::string>> typePath) {
         std::stringstream output;
         if (arg.isPointerTy())
-            output << getJsonInputTemplateTextForJsonRvalue(*arg.getPointerElementType()); // we abstract pointers away
+            output << getJsonInputTemplateTextForJsonRvalue(*arg.getPointerElementType(), typePath); // we abstract pointers away
 
         // if scalar
         if (arg.isArrayTy() == false && arg.isStructTy() == false && !arg.isPointerTy()) {
-            output << arg.getCTypeName();
+            output << "'" << arg.getCTypeName() << "'";
         }
 
         if (arg.isArrayTy()) {
             output << "[";
             for (int i = 0; i < arg.getArrayNumElements(); i++) {
-                output << getJsonInputTemplateTextForJsonRvalue(*arg.getArrayElementType());
+                output << getJsonInputTemplateTextForJsonRvalue(*arg.getArrayElementType(), typePath);
                 if (i != arg.getArrayNumElements() - 1) {
                     output << ",";
                 }
@@ -152,9 +156,26 @@ namespace handsanitizer {
 
         if (arg.isStructTy()) {
             output << "{";
+
+
             for (auto &mem : arg.getNamedMembers()) {
-                output << "\"" << mem.getName() << "\"" << ": "
-                       << getJsonInputTemplateTextForJsonRvalue(*mem.getType());
+                std::vector<std::pair<Type *, std::string>>::iterator pathToPreviousUnrollingOfType;
+                pathToPreviousUnrollingOfType = std::find_if(typePath.begin(), typePath.end(),
+                                                             [mem](std::pair<Type *, std::string> pair) { return mem.type == pair.first; });
+                if(pathToPreviousUnrollingOfType != typePath.end()){
+                    // member type is already found
+                    std::stringstream pathToFirstOccurrence;
+                    for(auto& path : typePath)
+                        pathToFirstOccurrence << "[\"" << path.second << "\"]";
+
+                    output << "\"" << mem.getName() << "\": \'cycles_with_" << pathToFirstOccurrence.str() << "\'";
+                }
+                else{
+                    auto memberTypePath(typePath);
+                    memberTypePath.push_back(std::pair<Type*, std::string>(mem.getType(), mem.getName()));
+                    output << "\"" << mem.getName() << "\"" << ": " << getJsonInputTemplateTextForJsonRvalue(*mem.getType(), memberTypePath);
+                }
+
                 if (mem.getName() != arg.getNamedMembers().back().getName()) { // names should be unique
                     output << "," << std::endl;
                 }
@@ -172,7 +193,9 @@ namespace handsanitizer {
         output << "{" << std::endl;
         output << "\"globals\": {" << std::endl;
         for (auto &arg: this->declarationManager->globals) {
-            output << "\"" << arg.getName() << "\"" << ": " << getJsonInputTemplateTextForJsonRvalue(*arg.getType());
+            std::vector<std::pair<Type*, std::string >> typePath;
+            typePath.push_back(std::pair<Type*, std::string>(arg.getType(), arg.getName()));
+            output << "\"" << arg.getName() << "\"" << ": " << getJsonInputTemplateTextForJsonRvalue(*arg.getType(), typePath);
             if (arg.getName() != this->declarationManager->globals.back().getName()) {
                 output << "," << std::endl;
             }
@@ -182,7 +205,9 @@ namespace handsanitizer {
 
         output << "\"arguments\": {" << std::endl;
         for (auto &arg: function->arguments) {
-            output << "\"" << arg.getName() << "\"" << ": " << getJsonInputTemplateTextForJsonRvalue(*arg.getType());
+            std::vector<std::pair<Type*, std::string >> typePath;
+            typePath.push_back(std::pair<Type*, std::string>(arg.getType(), arg.getName()));
+            output << "\"" << arg.getName() << "\"" << ": " << getJsonInputTemplateTextForJsonRvalue(*arg.getType(), typePath);
             if (arg.getName() != function->arguments.back().getName()) {
                 output << "," << std::endl;
             }
