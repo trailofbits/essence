@@ -44,7 +44,7 @@ namespace handsanitizer {
             output << "\"purity\": \"" << f.function->getPurityName() << "\"," << std::endl;
             output << "\"arguments\": [" << std::endl;
             for (auto &a : f.function->arguments) {
-                output << "{\"" << a.getName() << "\"" << ": " << getUnrolledTypeAsJson(*a.getType()) << "}";
+                output << "{\"" << a.getName() << "\"" << ": " << getUnrolledTypeAsJson(*a.getType(), std::vector<std::pair<Type *, std::string>>()) << "}";
                 if (a.getName() != f.function->arguments.back().name)
                     output << ",";
             }
@@ -60,7 +60,7 @@ namespace handsanitizer {
         std::vector<GlobalVariable> globals = getSetOfUniqueGlobalVariables();
         output << "\"globals\": {" << std::endl;
         for (auto &g : globals) {
-            output << "\"" << g.getName() << "\"" << ": " << getUnrolledTypeAsJson(*g.getType());
+            output << "\"" << g.getName() << "\"" << ": " << getUnrolledTypeAsJson(*g.getType(), std::vector<std::pair<Type *, std::string>>());
             if (g.getName() != globals.back().name)
                 output << ",";
         }

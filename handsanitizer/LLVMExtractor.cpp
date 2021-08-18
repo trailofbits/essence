@@ -217,7 +217,12 @@ namespace handsanitizer {
             return this->getDefinedStructByLLVMType(declarationManager, type);
         }
 
+        else if(type->isFunctionTy()){
+            throw std::invalid_argument("Function type found, we do not support this");
+        }
+
         else{
+
             std::string type_str;
             llvm::raw_string_ostream rso(type_str);
             type->print(rso);

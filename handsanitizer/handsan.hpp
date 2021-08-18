@@ -71,7 +71,7 @@ namespace handsanitizer {
         bool structIsUnion = false;
     };
 
-    std::string getUnrolledTypeAsJson(Type& type);
+    std::string getUnrolledTypeAsJson(Type &type, std::vector<std::pair<Type *, std::string>> typePath);
 
     struct NamedVariable{
         NamedVariable(std::string name, Type* type): name(name), type(type){};

@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iomanip>
 #include "FunctionCallerGenerator.h"
+#include <nlohmann/json.hpp>
 
 namespace handsanitizer {
     void FunctionCallerGenerator::generate_cpp_file_for_function(std::string dest_file_path) {
@@ -140,7 +141,7 @@ namespace handsanitizer {
 
         // if scalar
         if (arg.isArrayTy() == false && arg.isStructTy() == false && !arg.isPointerTy()) {
-            output << "'" << arg.getCTypeName() << "'";
+            output << "\"" << arg.getCTypeName() << "\"";
         }
 
         if (arg.isArrayTy()) {
@@ -166,9 +167,9 @@ namespace handsanitizer {
                     // member type is already found
                     std::stringstream pathToFirstOccurrence;
                     for(auto& path : typePath)
-                        pathToFirstOccurrence << "[\"" << path.second << "\"]";
+                        pathToFirstOccurrence << "[\'" << path.second << "\']";
 
-                    output << "\"" << mem.getName() << "\": \'cycles_with_" << pathToFirstOccurrence.str() << "\'";
+                    output << "\"" << mem.getName() << "\": \"cycles_with_" << pathToFirstOccurrence.str() << "\"";
                 }
                 else{
                     auto memberTypePath(typePath);
@@ -190,11 +191,13 @@ namespace handsanitizer {
         of.open(dest_file_path, std::ofstream::out | std::ofstream::trunc);
 
         std::stringstream output;
+
         output << "{" << std::endl;
         output << "\"globals\": {" << std::endl;
         for (auto &arg: this->declarationManager->globals) {
             std::vector<std::pair<Type*, std::string >> typePath;
             typePath.push_back(std::pair<Type*, std::string>(arg.getType(), arg.getName()));
+
             output << "\"" << arg.getName() << "\"" << ": " << getJsonInputTemplateTextForJsonRvalue(*arg.getType(), typePath);
             if (arg.getName() != this->declarationManager->globals.back().getName()) {
                 output << "," << std::endl;
@@ -213,9 +216,10 @@ namespace handsanitizer {
             }
         }
         output << "}" << std::endl;
-
         output << "}" << std::endl;
-        of << std::setw(4) << output.str() << std::endl;
+
+        auto j = nlohmann::json::parse(output.str());
+        of << j.dump(4) << std::endl;
         of.close();
     }
 

@@ -4,6 +4,14 @@ This project aims to extract functions from llvm bitcode files and generate exec
 Functions can be specified by name and convenient json input templates will be generated in which their arguments (including globals) can be specified.
 
 
+### Features:
+Essence currently supports:
+* Listing all function signatures inside an llvm bitcode module sorted by purity
+* Generating executables for a specified list of functions 
+* Easy json in/output. Input abstracts memory away allowing the user to specify values directly underneath the pointers as well as directly past it. 
+* Supports circular pointer type definitions, i.e `struct X { struct X* x};`
+
+
 ### About purity
 Our focus is primarly "pure" functions. There are two major categories of pure functions
 
@@ -89,13 +97,13 @@ void f(B b) { return; };
 If a value is a pointer we support the following inputs:
 ```json
 {
-   "int_val_ptr_1": 30, # sets 30 at the addressed referenced by int_val_ptr,
-   "int_val_ptr_2": [30, 40, 50], # this will set the memory directly after 30 to 40 and 50 
-   "char_ptr_val_1": "a", # for chars we support ascii, note a null will be placed directly after "a",
+   "int_val_ptr_1": 30, // sets 30 at the addressed referenced by int_val_ptr,
+   "int_val_ptr_2": [30, 40, 50], // this will set the memory directly after 30 to 40 and 50 
+   "char_ptr_val_1": "a", // for chars we support ascii, note a null will be placed directly after "a",
    "char_ptr_val_2": "a whole string is supported and is null terminated",
-   "char_ptr_val_3": ["a"], # alternatively you can box it in an array, this will prevent null termination
-   "char_ptr_val_4": 65, # ascii numeric values are also supported
-   "char_ptr_val_5": ["abc", 65, "bc", null] # you can mix and match, if you want a null termination with array syntax you add a null suffix
+   "char_ptr_val_3": ["a"], // alternatively you can box it in an array, this will prevent null termination
+   "char_ptr_val_4": 65, // ascii numeric values are also supported
+   "char_ptr_val_5": ["abc", 65, "bc", null] // you can mix and match, if you want a null termination with array syntax you add a null suffix
            
 }
 ```
@@ -103,11 +111,9 @@ If a value is a pointer we support the following inputs:
 ### Output
 After the function has been called, we return the output of the function together with all global variables as a json object on std out. 
 
-## Limitations
-Currently, essence is unable to handle the following two scenarios 
 
-### Circular dependencies through pointers
-While valid C, essence aims to expose a way to get input into the derefenenced locations, however for this case it would cause infinte recursion.
+### Circular dependencies through pointers 
+Just like C we support pointer based circular dependencies 
 ```c
 struct A;
 struct B;
@@ -120,6 +126,16 @@ typedef struct B{
     A a;
 } B;
 ```
+
+
+## Limitations
+Currently, essence is unable to handle the following 
+
+### Function types
+If any function type is present in the binary essence has to halt its analysis.
+When this causes problems for unrelated functions the user should first extract the relevant parts of the module out. 
+
+
 
 ### Functions that write to the same locations as essence
 Essence tries to expose all global variables used in an bitcode module.
