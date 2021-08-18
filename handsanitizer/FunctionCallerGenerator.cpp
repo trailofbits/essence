@@ -22,6 +22,7 @@ namespace handsanitizer {
 
         // DECLARE STRUCTS
         setupfilestream << getTextForUserDefinedTypes();
+        setupfilestream << jsonInputParser->getStructParsingHelpers();
 
         // DECLARATION TEST FUNCTION
         // the LLVM type name differs from how we define it in our generated source code

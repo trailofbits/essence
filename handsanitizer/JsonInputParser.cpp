@@ -1,7 +1,4 @@
-//
-// Created by sabastiaan on 11-08-21.
-//
-
+#include <iostream>
 #include "JsonInputParser.h"
 #include <sstream>
 
@@ -90,6 +87,8 @@ namespace handsanitizer {
     }
 
     std::string JsonInputParser::getParserRetrievalForStructs(const JsonParsingCandidate &candidate, bool isMalloced) {
+        std::cerr << "should reach this right" << std::endl;
+
         std::stringstream output;
         //TODO FIX structs
         // first do non array members since these might need to be recursively build up first
@@ -108,6 +107,7 @@ namespace handsanitizer {
                         .type = member.getType(),
                         .isForGlobalVariable = false
                 };
+                std::cerr << "recursing for member" << std::endl;
                 output << getParserRetrievalForNamedType(memberCandidate);
                 parsingCandidatesForMembers.push_back(memberCandidate);
             }
@@ -289,6 +289,7 @@ namespace handsanitizer {
 
     std::string JsonInputParser::getParserRetrievalForPointerToNonCharType(const JsonParsingCandidate &candidate) {
         std::stringstream output;
+
         handsanitizer::Type *pointeeType = candidate.type->getPointerElementType();
         std::string elTypeName = pointeeType->getCTypeName();
         std::string jsonValue = candidate.jsonRoot;
@@ -298,15 +299,14 @@ namespace handsanitizer {
             output << elTypeName << "* " << argument_name << ";" << std::endl;
 
         if (pointeeType->isStructTy()) {
-            output << candidate.lvalueName << " = (" << pointeeType->getCTypeName() << "*) malloc(sizeof(" << pointeeType->getCTypeName() << "));" << std::endl;
-            auto pointeeCandidate = JsonParsingCandidate{
-                .lvalueName = candidate.lvalueName,
-                .jsonRoot = candidate.jsonRoot,
-                .type = candidate.type->getPointerElementType(),
-                .isForGlobalVariable = candidate.isForGlobalVariable
-            };
+            auto cmp = [&candidate](std::pair<Type*, std::string> pair){ return candidate.type->getPointerElementType() == pair.first;};
+            auto helperFunc = std::find_if(structParsingHelperFunctions.begin(), structParsingHelperFunctions.end(), cmp);
+            if(helperFunc == structParsingHelperFunctions.end())
+                throw std::invalid_argument("Trying to parse a structure for which no helper function exists");
 
-            output << getParserRetrievalForStructs(pointeeCandidate, true) << std::endl;
+
+            auto funcName = helperFunc->second;
+            output << candidate.lvalueName << " = " << funcName << "(" << candidate.jsonRoot << ");" << std::endl;
         } else {
             // if its an array
             output << "if(" << jsonValue << ".is_array()) { " << std::endl;
@@ -369,81 +369,57 @@ namespace handsanitizer {
      *
      * maybe add in the interface that this only works for pointer to structs?
      */
-    std::string
-    JsonInputParser::getPointerToStructParserFunctionDefinitions(Type *type) {
+    std::string JsonInputParser::getPointerToStructParserFunctionDefinitions(Type *type) {
         //TODO fix this
-//        std::stringstream output;
-//        std::string jsonRoot = declarationManager->getUniqueTmpCPPVariableNameFor("json");
-//
-//
-//        output << type->getCTypeName() << "* "
-//               << declarationManager->getUniqueTmpCPPVariableNameFor("parse" + type->getCTypeName() + "Struct")
-//               << "(const nlohmann::json& " << jsonRoot << ") {" << std::endl;
-//
-//        std::string malloced_struct_variable = declarationManager->getUniqueTmpCPPVariableNameFor(type->getCTypeName() + "_malloced");
-//        declarationManager->registerVariableToBeFreed(malloced_struct_variable);
-//
-//        output << malloced_struct_variable << "* = malloc(sizeof(" << type->getCTypeName() << "));";
-//
-//
-//        // first do non array members since these might need to be recursively build up first
-//        // declare and assign values to struct
-//        // then fill in struct arrays as these are only available first during struct initialization.
-//        for (auto member : type->getNamedMembers()) {
-//            if (member.getType()->isArrayTy() == false) {
-//                std::vector<std::string> fullMemberName;
-//                fullMemberName.push_back(member.getName());
-//
-//                JsonParsingCandidate req{
-//                        .lvalueName = declarationManager->getUniqueTmpCPPVariableNameFor(member.getName()),
-//                        .jsonRoot = jsonRoot + "[" + member.getName() + "]",
-//                        .type = member.getType(),
-//                        .isForGlobalVariable = false
-//                };
-//
-//                output << getParserRetrievalForNamedType(jsonRootToStruct);
-//            }
-//        }
-//        output << "\t";
-//        if (!isForGlobals)
-//            output << type->getCTypeName() << " ";
-//        output << this->declarationManager->joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE);
-//        if (isForGlobals)
-//            output << " = { " << std::endl; // with globals we have different syntax :?
-//        else
-//            output << "{ " << std::endl;
-//        for (auto member : type->getNamedMembers()) {
-//            if (member.getType()->isArrayTy() == false) {
-//                std::vector<std::string> fullMemberName(prefixes);
-//                fullMemberName.push_back(member.getName());
-//                output << "\t\t" << "." << member.getName() << " = "
-//                       << this->declarationManager->joinStrings(fullMemberName, GENERATE_FORMAT_CPP_VARIABLE) << "," << std::endl;
-//            }
-//        }
-//        output << "\t};" << std::endl;
-//
-//        for (auto member : type->getNamedMembers()) {
-//            // arrays can be also of custom types with arbitrary but finite amounts of nesting, so we need to recurse
-//            if (member.getType()->isArrayTy()) {
-//                int arrSize = member.getType()->getArrayNumElements();
-//                Type *arrType = member.getType()->getArrayElementType();
-//                std::string iterator_name = this->declarationManager->getUniqueLoopIteratorName(); // we require a name from this function to get proper generation
-//                output << "for(int " << iterator_name << " = 0; " << iterator_name << " < " << arrSize << ";"
-//                       << iterator_name << "++) {" << std::endl;
-//                std::vector<std::string> fullMemberName(prefixes);
-//                fullMemberName.push_back(member.getName());
-//                fullMemberName.push_back(iterator_name);
-//                output << getParserRetrievalForNamedType(jsonInputVariableName);
-//                output << this->declarationManager->joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE) << "." << member.getName() << "["
-//                       << iterator_name << "] = " << this->declarationManager->joinStrings(fullMemberName, GENERATE_FORMAT_CPP_VARIABLE) << ";"
-//                       << std::endl;
-//                output << "}" << std::endl;
-//            }
-//        }
-//        return output.str();
-//
-//        output << "}"
-//        return output.str();
+        std::stringstream output;
+        std::string jsonRoot = declarationManager->getUniqueTmpCPPVariableNameFor("json");
+        auto cmp = [&type](std::pair<Type*, std::string> pair){ return type == pair.first;};
+        auto helperFunc = std::find_if(structParsingHelperFunctions.begin(), structParsingHelperFunctions.end(), cmp);
+
+
+        output << type->getCTypeName() << "* " << helperFunc->second << "(const nlohmann::json& " << jsonRoot << ") {" << std::endl;
+
+
+
+        output << "if(" << jsonRoot << ".is_null()) { return nullptr; } else {" << std::endl;
+
+        auto localLvalue = declarationManager->getUniqueTmpCPPVariableNameFor();
+
+        output << type->getCTypeName() << "* " << localLvalue << " = (" << type->getCTypeName() << "*) malloc(sizeof(" << type->getCTypeName() << "));" << std::endl;
+        auto pointeeCandidate = JsonParsingCandidate{
+            .lvalueName = localLvalue,
+            .jsonRoot = jsonRoot,
+            .type = type,
+            .isForGlobalVariable = false
+        };
+        if(!pointeeCandidate.type->isStructTy())
+            throw std::invalid_argument("ugh");
+        output << getParserRetrievalForStructs(pointeeCandidate, true) << std::endl;
+        output << "return " << localLvalue << ";" << std::endl;
+        output << "}" << std::endl; // end else for non-null struct
+
+        output << "}" << std::endl; // end function
+
+        //TODO make sure that this can't be called at wrong time
+
+        return output.str();
+    }
+
+    std::string JsonInputParser::getStructParsingHelpers() {
+        std::stringstream output;
+        //first declare then define
+
+        for(auto& udt : declarationManager->user_defined_types){
+            auto funcName = declarationManager->getUniqueTmpCPPVariableNameFor("parse" + udt->getCTypeName() + "Struct");
+            structParsingHelperFunctions.push_back(std::pair<Type*, std::string>(udt, funcName));
+            std::cerr << "just declared func: " << funcName << std::endl;
+            output << udt->getCTypeName() << "* " << funcName << "(const nlohmann::json& " << declarationManager->getUniqueTmpCPPVariableNameFor() << ");" << std::endl;
+        }
+
+        for(auto& udt : declarationManager->user_defined_types){
+            output << getPointerToStructParserFunctionDefinitions(udt);
+        }
+        return output.str();
     }
 }
 

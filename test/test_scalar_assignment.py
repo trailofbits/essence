@@ -171,3 +171,12 @@ def test_build_read_none_only_builds_write_only_functions():
     assert os.path.isfile("output/write_only/read_none.cpp") == False
     assert os.path.isfile("output/write_only/write_only.cpp") == True
     assert os.path.isfile("output/write_only/reads_memory.cpp") == False
+
+
+
+def test_cyclic_with_single_struct():
+    program_output = call_handsanitizer("cyclic_with_single_struct")
+
+    output_json = json.loads(program_output)
+    print(json.dumps(output_json, indent=4))
+    assert output_json["output"] == 1
