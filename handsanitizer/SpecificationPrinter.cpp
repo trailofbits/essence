@@ -1,29 +1,79 @@
 #include "SpecificationPrinter.h"
 #include <fstream>
 #include <set>
-#include <iomanip>
 #include <filesystem>
+#include <nlohmann/json.hpp>
 
 namespace handsanitizer {
-    void SpecificationPrinter::printSpecification(std::string outputDir, std::string fileName) {
+    nlohmann::json SpecificationPrinter::getUnrolledTypeAsJsonJson(Type &type) {
+        nlohmann::json json;
+
+        json["type"] = type.getTypeName();
+        if(type.isVoidTy()){
+            // do nothing
+        }
+        if (type.isIntegerTy())
+            json["bitWidth"] = type.getBitWidth();
+
+        if (type.isPointerTy())
+            json["pointerElementType"] = getUnrolledTypeAsJsonJson(*type.getPointerElementType());
+
+        if (type.isArrayTy()) {
+            json["getArrayNumElements"] = type.getArrayNumElements();
+            json["arrayElementType"] = getUnrolledTypeAsJsonJson(*type.getArrayElementType());
+        }
+
+        if (type.isStructTy()) {
+            json["structName"] = type.getCTypeName();
+            std::vector<nlohmann::json> members;
+            for (auto &member: type.getNamedMembers()) {
+                nlohmann::json memberJson;
+                memberJson[member.getName()] = getUnrolledTypeAsJsonJson(*member.getType());
+                members.push_back(memberJson);
+            }
+            json["structMembers"] = members;
+        }
+        return json;
+    }
+
+    void SpecificationPrinter::printSpecification(const std::string& outputDir, const std::string& fileName) {
         std::string outputFilePath = getOutputFilename(outputDir, fileName);
         std::ofstream of;
         of.open(outputFilePath, std::ofstream::out | std::ofstream::trunc);
 
-        std::stringstream output;
+        nlohmann::json json;
 
-        output << "{" << std::endl;
-        printGlobalsToOutputStream(output);
-        printFunctionsToOutputStream(output);
-        output << "}" << std::endl;
+        std::vector<GlobalVariable> globals = getSetOfUniqueGlobalVariables();
+        for (auto &g : globals) {
+            json["globals"][g.getName()] = getUnrolledTypeAsJsonJson(*g.getType());
+        }
 
+        std::vector<nlohmann::json> functionsJson;
+        for (auto &f: functions) {
+            nlohmann::json functionJson;
+            functionJson["name"] = f.function->name;
+            functionJson["signature"] = f.function->getFunctionSignature();
+            functionJson["purity"] = f.function->getPurityName();
+            std::vector<nlohmann::json> argumentsJson;
+            for (auto &a : f.function->arguments) {
+                nlohmann::json argJson;
+                argJson["name"] = a.getName();
+                argJson["type"] = getUnrolledTypeAsJsonJson(*a.getType());
+                argumentsJson.push_back(argJson);
+            }
+            functionJson["arguments"] = argumentsJson;
+            functionsJson.push_back(functionJson);
 
-        of << std::setw(4) << output.str();
+        }
+        json["functions"] = functionsJson;
+
+        of << json.dump(4) << std::endl;
         of.close();
     }
 
+
     std::string
-    SpecificationPrinter::getOutputFilename(const std::string &outputDir, const std::string &fileName) const {
+    SpecificationPrinter::getOutputFilename(const std::string &outputDir, const std::string &fileName) {
         std::filesystem::path p(fileName);
         p.replace_extension("");
         auto newFileName = p.filename().string();
@@ -33,38 +83,6 @@ namespace handsanitizer {
         outputPath.replace_extension("spec.json");
         auto outputFilePath = outputPath.string();
         return outputFilePath;
-    }
-
-    void SpecificationPrinter::printFunctionsToOutputStream(std::stringstream &output) {
-        output << "\"functions\": [" << std::endl;
-        for (auto &f: functions) {
-            output << "{";
-            output << "\"name\": \"" << f.function->name << "\"," << std::endl;
-            output << "\"signature\": \"" << f.function->getFunctionSignature() << "\"," << std::endl;
-            output << "\"purity\": \"" << f.function->getPurityName() << "\"," << std::endl;
-            output << "\"arguments\": [" << std::endl;
-            for (auto &a : f.function->arguments) {
-                output << "{\"" << a.getName() << "\"" << ": " << getUnrolledTypeAsJson(*a.getType(), std::vector<std::pair<Type *, std::string>>()) << "}";
-                if (a.getName() != f.function->arguments.back().name)
-                    output << ",";
-            }
-            output << "]}";
-            if (f.function->name != functions.back().function->name)
-                output << ",";
-
-        }
-        output << "]" << std::endl; // many possible functions
-    }
-
-    void SpecificationPrinter::printGlobalsToOutputStream(std::stringstream &output)  {
-        std::vector<GlobalVariable> globals = getSetOfUniqueGlobalVariables();
-        output << "\"globals\": {" << std::endl;
-        for (auto &g : globals) {
-            output << "\"" << g.getName() << "\"" << ": " << getUnrolledTypeAsJson(*g.getType(), std::vector<std::pair<Type *, std::string>>());
-            if (g.getName() != globals.back().name)
-                output << ",";
-        }
-        output << "}," << std::endl;
     }
 
     std::vector<GlobalVariable> SpecificationPrinter::getSetOfUniqueGlobalVariables() {

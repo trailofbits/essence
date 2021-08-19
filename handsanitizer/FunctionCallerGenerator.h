@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <utility>
 #include "handsan.hpp"
 #include "JsonInputParser.h"
 #include "JsonOutputGenerator.h"
@@ -19,7 +20,7 @@ namespace handsanitizer{
 
         FunctionCallerGenerator(std::unique_ptr<Function> function, std::shared_ptr<DeclarationManager> dm)
                 : function(std::move(function)) {
-            declarationManager = dm;
+            declarationManager = std::move(dm);
             jsonInputParser = std::make_unique<JsonInputParser>(declarationManager);
             jsonOutputGenerator = std::make_unique<JsonOutputGenerator>(declarationManager);
         }

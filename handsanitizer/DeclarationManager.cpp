@@ -1,6 +1,5 @@
 #include <vector>
 #include "DeclarationManager.h"
-#include "DeclarationManager.h"
 
 namespace handsanitizer {
     const std::string CPP_ADDRESSING_DELIMITER = ".";
