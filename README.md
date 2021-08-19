@@ -2,7 +2,7 @@
 
 This project aims to extract functions from llvm bitcode files and generate executables for them.
 Functions can be specified by name and convenient json input templates will be generated in which their arguments (including globals) can be specified.
-
+The project is sub-devided into two components: `Essence` is the python tool which is meant for users and handles all of the end to end functionality, and `Handsanitizer` which is the c++ component which interacts directly with the LLVM bitcode modules and generates neccesary code/templates.
 
 ### Features:
 Essence currently supports:
@@ -46,7 +46,7 @@ $ pip install -e ./
 This command lists the functions in a bitcode file, together with their signature and purity level 
 
 
-#### essence --build [--output/-o outputdir] [--no-template] <input.bc> <[list_of_function_names]>   
+#### essence --build [--output/-o outputdir] [--no-template] <input.bc> f1 f2 
 This command will build an executable for f1 and f2.
 The output directory can be specified, as well as that the json input template should not be (re)generated to preserve arguments inside the template file.
 
