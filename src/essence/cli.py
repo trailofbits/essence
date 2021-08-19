@@ -147,7 +147,7 @@ def build_functions_for(bc_file: str, output_dir: str, template: bool, func_name
     func_exec_file_path = get_filepath_in_output_dir(output_dir, func_name, "")
     func_generated_cpp_file_path = get_filepath_in_output_dir(output_dir, func_name, ".cpp")
 
-    argparse_include_path = dirname + "/../../argparse/include"
+    argparse_include_path = dirname + "/../../vendor/include"
     subprocess.run(
         ["clang++", "-std=c++17", output_obj_file_path, func_generated_cpp_file_path, "-o",
          func_exec_file_path, "-I" + argparse_include_path])
