@@ -1,8 +1,7 @@
 #include "JsonOutputGenerator.h"
 
 namespace handsanitizer{
-    std::string
-    JsonOutputGenerator::getJsonOutputForType(std::string json_name, std::vector<std::string> prefixes, Type *type, bool skipRoot) {
+    std::string JsonOutputGenerator::getJsonOutputForType(const std::string& json_name, const std::vector<std::string>& prefixes, Type *type, bool skipRoot) {
         std::stringstream output;
         if (type->isStructTy()) {
             for (auto &mem : type->getNamedMembers()) {
@@ -28,7 +27,7 @@ namespace handsanitizer{
     }
 
     // assume output_var_name contains the return value already set
-    std::string JsonOutputGenerator::getJsonOutputText(std::string output_var_name, handsanitizer::Type *retType) {
+    std::string JsonOutputGenerator::getJsonOutputText(const std::string& output_var_name, handsanitizer::Type *retType) {
         std::stringstream s;
         auto jsonVarName = this->declarationManager->getUniqueTmpCPPVariableNameFor("output_json");
         s << "nlohmann::json " << jsonVarName << ";" << std::endl;
@@ -41,7 +40,7 @@ namespace handsanitizer{
 
         prefixes.clear();
         prefixes.push_back(output_var_name);
-        if (retType->isVoidTy() == false)
+        if (!retType->isVoidTy())
             s << getJsonOutputForType(jsonVarName + "[\"output\"]", prefixes, retType, true);
 
 

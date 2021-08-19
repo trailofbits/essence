@@ -8,9 +8,14 @@ Functions can be specified by name and convenient json input templates will be g
 Essence currently supports:
 * Listing all function signatures inside an llvm bitcode module sorted by purity
 * Generating executables for a specified list of functions 
-* Easy json in/output. Input abstracts memory away allowing the user to specify values directly underneath the pointers as well as directly past it. 
+* Easy json in/output. Input abstracts memory away allowing the user to specify values directly underneath the pointers as well as directly past it.
+* Supports aggregate types `arrays`, `structs` and `unions`
 * Supports circular pointer type definitions, i.e `struct X { struct X* x};`
 
+It does _not_ support
+* Bitcode modules containing one of the following LLVM types `Function`,`Vector` `x86amx`, or `x86_mmx`
+* Functions that use `stdio`
+* Purity discovery, meaning that if your program is compiled with -O0 all functions will be listed as impure
 
 ### About purity
 Our focus is primarly "pure" functions. There are two major categories of pure functions
@@ -36,12 +41,12 @@ $ pip install -e ./
 ```
 
 
-### Commands  
+## Commands  
 #### essence <input.bc> 
 This command lists the functions in a bitcode file, together with their signature and purity level 
 
 
-#### essence --build [--output/-o outputdir] [--no-template] <input.bc> f1 f2 
+#### essence --build [--output/-o outputdir] [--no-template] <input.bc> <[list_of_function_names]>   
 This command will build an executable for f1 and f2.
 The output directory can be specified, as well as that the json input template should not be (re)generated to preserve arguments inside the template file.
 
@@ -58,7 +63,7 @@ Build all functions inside input.bc that are of purity level `write-only`
 ### Input 
 To provide arguments to the function for which a standalone executable has been generated we provide convienent to use json input templates. These contain all global variables as well as a complete resprentation of the arguments possible arguments.
 
-Essence also allows for setting the values underlying to values which point to memory.   
+Essence also allows for setting the values underlying to value which point to memory.   
 
 
 example:
@@ -94,6 +99,7 @@ void f(B b) { return; };
 }
 ```
 
+#### String routing
 If a value is a pointer we support the following inputs:
 ```json
 {
@@ -108,24 +114,70 @@ If a value is a pointer we support the following inputs:
 }
 ```
 
+#### Routing over Cyclic definitions
+Consider the example of an linked list 
+
+```c
+[typedef struct linked_list {
+    struct linked_list* next;
+    int value;
+};
+
+int print_list_value_of_linked_list(linked_list ll){
+    if(ll->next != NULL)
+        return print_list_value_of_linked_list(next);
+    return ll.value;
+}]()
+```
+
+Essence with it's input templates exposes a mechanism to set the underlying value of pointers and thus also to `linked_list.next`.
+This recurses infinitly, we therefore have a special field within the specification and input template denoting how it cycles and provide an easy way to generate desired recursive input.
+
+```json
+{
+   "arguments": {
+      "barvictor": {
+         "a0": {
+            "a0": "cycles_with_['barvictor']['a0']",
+            "a1": "int32_t"
+         },
+         "a1": "int32_t"
+      }
+   },
+   "globals": {}
+}
+
+```
+The `cyclic_with_<path_to_object>` denotes that the entire object located at `<path>` may be copy pasted at the location an arbtirary amount of times. With the requirement that it terminates by a `null` value.
+
+```json
+{
+   "arguments": {
+      "barvictor": {
+         "a0": {
+            "a0": {
+               "a0": {
+                  "a0": null,
+                  "a1": 4
+               },
+               "a1": 3
+            },
+            "a1": 2
+         },
+         "a1": 1
+      }
+   },
+   "globals": {}
+}
+
+```
+
+
 ### Output
 After the function has been called, we return the output of the function together with all global variables as a json object on std out. 
 
 
-### Circular dependencies through pointers 
-Just like C we support pointer based circular dependencies 
-```c
-struct A;
-struct B;
 
-typedef struct A {
-    B* b;    
-};
-
-typedef struct B{
-    A a;
-} B;
-```
 
 
 ## Limitations

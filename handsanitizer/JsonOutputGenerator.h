@@ -9,8 +9,8 @@ class JsonOutputGenerator {
 
 public:
     JsonOutputGenerator(std::shared_ptr<DeclarationManager> dm): declarationManager(dm){};
-    std::string getJsonOutputText(std::string output_var_name, handsanitizer::Type* retType);
-    std::string getJsonOutputForType(std::string json_name, std::vector<std::string> prefixes, handsanitizer::Type* type, bool skipRoot = false);
+    std::string getJsonOutputText(const std::string& output_var_name, handsanitizer::Type* retType);
+    std::string getJsonOutputForType(const std::string& json_name, const std::vector<std::string>& prefixes, handsanitizer::Type* type, bool skipRoot = false);
 
 
 

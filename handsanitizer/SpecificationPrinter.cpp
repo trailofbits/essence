@@ -5,7 +5,7 @@
 #include <nlohmann/json.hpp>
 
 namespace handsanitizer {
-    nlohmann::json SpecificationPrinter::getUnrolledTypeAsJsonJson(Type &type) {
+    nlohmann::json SpecificationPrinter::getUnrolledTypeAsJson(Type &type, std::vector<std::pair<Type *, std::string>> typePath) {
         nlohmann::json json;
 
         json["type"] = type.getTypeName();
@@ -16,11 +16,11 @@ namespace handsanitizer {
             json["bitWidth"] = type.getBitWidth();
 
         if (type.isPointerTy())
-            json["pointerElementType"] = getUnrolledTypeAsJsonJson(*type.getPointerElementType());
+            json["pointerElementType"] = getUnrolledTypeAsJson(*type.getPointerElementType(), typePath);
 
         if (type.isArrayTy()) {
             json["getArrayNumElements"] = type.getArrayNumElements();
-            json["arrayElementType"] = getUnrolledTypeAsJsonJson(*type.getArrayElementType());
+            json["arrayElementType"] = getUnrolledTypeAsJson(*type.getArrayElementType(), typePath);
         }
 
         if (type.isStructTy()) {
@@ -28,7 +28,19 @@ namespace handsanitizer {
             std::vector<nlohmann::json> members;
             for (auto &member: type.getNamedMembers()) {
                 nlohmann::json memberJson;
-                memberJson[member.getName()] = getUnrolledTypeAsJsonJson(*member.getType());
+
+                auto firstOccurrenceOfType = std::find_if(typePath.begin(), typePath.end(), [member](std::pair<Type*, std::string> pair){ return member.type == pair.first;});
+                if(firstOccurrenceOfType == typePath.end()){
+                    std::stringstream path;
+                    for(auto& typeInPath : typePath)
+                        path << "[\'" + typeInPath.second + "\']";
+                    memberJson[member.getName()] = "cyclic_with_" + path.str();
+                }
+                else{
+                    auto memberTypePath(typePath);
+                    memberTypePath.emplace_back(member.getType(), member.getName());
+                    memberJson[member.getName()] = getUnrolledTypeAsJson(*member.getType(), memberTypePath);
+                }
                 members.push_back(memberJson);
             }
             json["structMembers"] = members;
@@ -45,7 +57,9 @@ namespace handsanitizer {
 
         std::vector<GlobalVariable> globals = getSetOfUniqueGlobalVariables();
         for (auto &g : globals) {
-            json["globals"][g.getName()] = getUnrolledTypeAsJsonJson(*g.getType());
+            std::vector<std::pair<Type *, std::string>> typePath;
+            typePath.emplace_back(g.getType(), g.getName());
+            json["globals"][g.getName()] = getUnrolledTypeAsJson(*g.getType(), typePath);
         }
 
         std::vector<nlohmann::json> functionsJson;
@@ -58,7 +72,9 @@ namespace handsanitizer {
             for (auto &a : f.function->arguments) {
                 nlohmann::json argJson;
                 argJson["name"] = a.getName();
-                argJson["type"] = getUnrolledTypeAsJsonJson(*a.getType());
+                std::vector<std::pair<Type *, std::string>> typePath;
+                typePath.emplace_back(a.getType(), a.getName());
+                argJson["type"] = getUnrolledTypeAsJson(*a.getType(), typePath);
                 argumentsJson.push_back(argJson);
             }
             functionJson["arguments"] = argumentsJson;

@@ -1,6 +1,3 @@
-//
-// Created by sabastiaan on 22-07-21.
-//
 #include <cstdlib>
 #include <iostream>
 #include <sstream>
@@ -23,6 +20,8 @@ namespace handsanitizer {
 
         // DECLARE STRUCTS
         setupfilestream << getTextForUserDefinedTypes();
+        setupfilestream << "std::vector<void*> " << declarationManager->getFreeVectorName() << ";" << std::endl;
+
         setupfilestream << jsonInputParser->getStructParsingHelpers();
 
         // DECLARATION TEST FUNCTION
@@ -46,8 +45,7 @@ namespace handsanitizer {
                         << "} " << std::endl << std::endl;
 
         // DEFINE CALLFUNCTION
-        setupfilestream << "void callFunction() { " << std::endl;
-        setupfilestream << "std::vector<void*> " << declarationManager->getFreeVectorName() << ";" << std::endl
+        setupfilestream << "void callFunction() { " << std::endl
                         << "\t\t" << "std::string inputfile = parser.get<std::string>(\"input_file\");" << std::endl;
         auto inputFileName = declarationManager->getUniqueTmpCPPVariableNameFor("inputFile");
         auto jsonInputVariable = declarationManager->getUniqueTmpCPPVariableNameFor("j");

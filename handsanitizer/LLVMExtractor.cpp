@@ -1,5 +1,4 @@
 #include <iostream>
-#include <sstream>
 #include "LLVMExtractor.hpp"
 #include "handsan.hpp"
 #include "FunctionCallerGenerator.h"
@@ -24,14 +23,14 @@ namespace handsanitizer {
             std::shared_ptr<DeclarationManager> declarationManager = std::make_shared<DeclarationManager>();
             DeclareAllCustomTypesInDeclarationManager(declarationManager, mod);
             DeclareGlobalsInManager(declarationManager, mod);
-            std::unique_ptr<Function> f = ExtractFunction(declarationManager, function);
+            std::unique_ptr<Function> extractedFunc = ExtractFunction(declarationManager, function);
 
             // make sure no names can be generated that are also used as function names
             for(auto& f : mod->functions())
                 if(f.hasName())
                     declarationManager->addDeclaration(f.getName().str());
 
-            fcgs.push_back( FunctionCallerGenerator(std::move(f), declarationManager));
+            fcgs.emplace_back(std::move(extractedFunc), declarationManager);
         }
 
         return fcgs;
@@ -47,7 +46,7 @@ namespace handsanitizer {
         llvm::raw_string_ostream rso(type_str);
         type->print(rso);
 
-        if(type->isStructTy() == false)
+        if(!type->isStructTy())
             return;
 
         if (this->hasStructDefined(declarationManager, type)){

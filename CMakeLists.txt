@@ -14,7 +14,7 @@ include_directories(argparse/include)
 
 
 
-add_executable(HandSanitizer handsanitizer/LLVMExtractor.hpp handsanitizer/LLVMExtractor.cpp handsanitizer/FunctionCallerGenerator.cpp handsanitizer/FunctionCallerGenerator.h handsanitizer/JsonInputParser.cpp handsanitizer/JsonInputParser.h handsanitizer/JsonOutputGenerator.cpp handsanitizer/JsonOutputGenerator.h handsanitizer/handsan.cpp handsanitizer/DeclarationManager.h handsanitizer/DeclarationManager.cpp handsanitizer/SpecificationPrinter.cpp handsanitizer/SpecificationPrinter.h)
+add_executable(HandSanitizer handsanitizer/LLVMExtractor.hpp handsanitizer/LLVMExtractor.cpp handsanitizer/FunctionCallerGenerator.cpp handsanitizer/FunctionCallerGenerator.h handsanitizer/JsonInputParser.cpp handsanitizer/JsonInputParser.h handsanitizer/JsonOutputGenerator.cpp handsanitizer/JsonOutputGenerator.h handsanitizer/DeclarationManager.h handsanitizer/DeclarationManager.cpp handsanitizer/SpecificationPrinter.cpp handsanitizer/SpecificationPrinter.h)
 target_sources(HandSanitizer PRIVATE
         handsanitizer/main.cpp)
 

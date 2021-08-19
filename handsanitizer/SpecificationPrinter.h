@@ -17,6 +17,6 @@ namespace handsanitizer {
         std::vector<GlobalVariable> getSetOfUniqueGlobalVariables();
 
         static std::string getOutputFilename(const std::string &outputDir, const std::string &fileName) ;
-        nlohmann::json getUnrolledTypeAsJsonJson(Type& type);
+        nlohmann::json getUnrolledTypeAsJson(Type &type, std::vector<std::pair<Type *, std::string>> typePath);
     };
 }

@@ -1,6 +1,5 @@
 #include <iostream>
 #include "JsonInputParser.h"
-#include <sstream>
 
 namespace handsanitizer {
     std::string JsonInputParser::getParserRetrievalTextForArguments(std::string jsonInputVariableName, std::vector<Argument> args) {
@@ -15,7 +14,7 @@ namespace handsanitizer {
         return getParserRetrievalText(jsonInputVariableName, globals, true);
     }
 
-    std::string JsonInputParser::getParserRetrievalText(std::string jsonInputVariableName, std::vector<NamedVariable> args,
+    std::string JsonInputParser::getParserRetrievalText(const std::string& jsonInputVariableName, std::vector<NamedVariable> args,
                                                         bool isForGlobals) {
         std::stringstream s;
 
@@ -57,7 +56,6 @@ namespace handsanitizer {
     std::string JsonInputParser::getParserRetrievalForGlobalArrays(const JsonParsingCandidate &candidate) {
         std::stringstream output;
         int arrSize = candidate.type->getArrayNumElements();
-        handsanitizer::Type *arrType = candidate.type->getArrayElementType();
         std::string iterator_name = this->declarationManager->getUniqueLoopIteratorName(); // we require a name from this function to get proper generation
         output << "for(int " << iterator_name << " = 0; " << iterator_name << " < " << arrSize << ";" << iterator_name
                << "++) {" << std::endl;
@@ -100,7 +98,7 @@ namespace handsanitizer {
 
         std::vector<JsonParsingCandidate> parsingCandidatesForMembers;
         for (auto member : candidate.type->getNamedMembers()) {
-            if (member.getType()->isArrayTy() == false) {
+            if (!member.getType()->isArrayTy()) {
                 JsonParsingCandidate memberCandidate{
                         .lvalueName = declarationManager->getUniqueTmpCPPVariableNameFor(member.getName()),
                         .jsonRoot = candidate.jsonRoot + "[\"" + member.getName() + "\"]",
@@ -117,7 +115,7 @@ namespace handsanitizer {
             output << candidate.type->getCTypeName() << " " << candidate.lvalueName << ";" << std::endl;
         int candidateCounter = 0;
         for (int i = 0; i < candidate.type->getNamedMembers().size(); i++) {
-            if (candidate.type->getNamedMembers()[i].getType()->isArrayTy() == false) {
+            if (!candidate.type->getNamedMembers()[i].getType()->isArrayTy()) {
                 output << candidate.lvalueName << accessDelimiter << candidate.type->getNamedMembers()[i].getName() << " = " << parsingCandidatesForMembers[candidateCounter].lvalueName << ";"
                        << std::endl;
                 candidateCounter++;
@@ -299,7 +297,7 @@ namespace handsanitizer {
             output << elTypeName << "* " << argument_name << ";" << std::endl;
 
         if (pointeeType->isStructTy()) {
-            auto cmp = [&candidate](std::pair<Type*, std::string> pair){ return candidate.type->getPointerElementType() == pair.first;};
+            auto cmp = [&candidate](const std::pair<Type*, std::string>& pair){ return candidate.type->getPointerElementType() == pair.first;};
             auto helperFunc = std::find_if(structParsingHelperFunctions.begin(), structParsingHelperFunctions.end(), cmp);
             if(helperFunc == structParsingHelperFunctions.end())
                 throw std::invalid_argument("Trying to parse a structure for which no helper function exists");
@@ -308,7 +306,7 @@ namespace handsanitizer {
             auto funcName = helperFunc->second;
             output << candidate.lvalueName << " = " << funcName << "(" << candidate.jsonRoot << ");" << std::endl;
         } else {
-            // if its an array
+            // if it's an array
             output << "if(" << jsonValue << ".is_array()) { " << std::endl;
             std::string malloced_value = declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalueName + "_malloced");
             std::string arrSize = candidate.jsonRoot + ".size()";
@@ -341,16 +339,16 @@ namespace handsanitizer {
     }
 
 
-    std::string JsonInputParser::getStringFromJson(std::string output_var, std::string json_name, std::string tmp_name_1,
-                                                   std::string tmp_name_2, bool addNullTermination) {
+    std::string JsonInputParser::getStringFromJson(const std::string& output_var, const std::string& json_name, const std::string& tmp_name_1,
+                                                   const std::string& tmp_name_2, bool addNullTermination) {
         std::stringstream s;
         s << "std::string " << tmp_name_1 << " = " << json_name << ".get<std::string>();" << std::endl;
         s << output_var << " = " << tmp_name_1 << ".data();";
         return s.str();
     }
 
-    std::string JsonInputParser::getStringLengthFromJson(std::string output_var, std::string json_name, std::string tmp_name_1,
-                                                         std::string tmp_name_2, bool addNullTermination) {
+    std::string JsonInputParser::getStringLengthFromJson(const std::string& output_var, const std::string& json_name, const std::string& tmp_name_1,
+                                                         const std::string& tmp_name_2, bool addNullTermination) {
         std::stringstream s;
         s << "std::string " << tmp_name_1 << " = " << json_name << ".get<std::string>();" << std::endl;
         s << "std::vector<char> " << tmp_name_2 << "(" << tmp_name_1 << ".begin(), " << tmp_name_1 << ".end());";
@@ -373,7 +371,7 @@ namespace handsanitizer {
         //TODO fix this
         std::stringstream output;
         std::string jsonRoot = declarationManager->getUniqueTmpCPPVariableNameFor("json");
-        auto cmp = [&type](std::pair<Type*, std::string> pair){ return type == pair.first;};
+        auto cmp = [&type](const std::pair<Type*, std::string>& pair){ return type == pair.first;};
         auto helperFunc = std::find_if(structParsingHelperFunctions.begin(), structParsingHelperFunctions.end(), cmp);
 
 
@@ -411,7 +409,7 @@ namespace handsanitizer {
 
         for(auto& udt : declarationManager->user_defined_types){
             auto funcName = declarationManager->getUniqueTmpCPPVariableNameFor("parse" + udt->getCTypeName() + "Struct");
-            structParsingHelperFunctions.push_back(std::pair<Type*, std::string>(udt, funcName));
+            structParsingHelperFunctions.emplace_back(udt, funcName);
             std::cerr << "just declared func: " << funcName << std::endl;
             output << udt->getCTypeName() << "* " << funcName << "(const nlohmann::json& " << declarationManager->getUniqueTmpCPPVariableNameFor() << ");" << std::endl;
         }
