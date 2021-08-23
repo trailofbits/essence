@@ -11,7 +11,7 @@ import shutil
 shutil.rmtree("output")
 Path("output").mkdir(parents=True, exist_ok=True)
 
-handsan_path = "../HandSanitizer"
+handsan_path = "../handsan"
 output_dir = "output"
 
 subprocess.run(["clang", "-c", "-emit-llvm", "-fno-discard-value-names", "*.c"], shell=True)

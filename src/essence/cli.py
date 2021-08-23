@@ -17,7 +17,7 @@ def get_filepath_in_output_dir(output_dir: str, input_file: str, ext: str):
 
 
 dirname = os.path.dirname(__file__)
-handsan_path = dirname + "/../../HandSanitizer"
+handsan_path = dirname + "/../../handsan"
 
 
 # main entry point

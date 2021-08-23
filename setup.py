@@ -27,6 +27,6 @@ setup(
     entry_points={
         "console_scripts": [ "essence = essence.cli:essence" ]
     },
-    url="https://github.com/trailofbits/handsanitizer",
+    url="https://github.com/trailofbits/essence",
     python_requires=">=3.7",
 )
