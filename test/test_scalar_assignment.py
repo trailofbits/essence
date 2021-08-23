@@ -14,10 +14,15 @@ Path("output").mkdir(parents=True, exist_ok=True)
 handsan_path = "../handsan"
 output_dir = "output"
 
-subprocess.run(["clang", "-c", "-emit-llvm", "-fno-discard-value-names", "*.c"], shell=True)
-subprocess.run(["clang", "-c", "-emit-llvm", "read_none_write_only_reads_memory_test.c", "-O1"])
+
+
+def setup_module(module):
+    subprocess.run(["clang", "-c", "-emit-llvm", "-fno-discard-value-names", "*.c"], shell=True)
+    subprocess.run(["clang", "-c", "-emit-llvm", "read_none_write_only_reads_memory_test.c", "-O1"])
+
 
 def call_handsanitizer(function_to_test):
+    subprocess.run(["clang", function_to_test + ".c", "-c", "-emit-llvm", "-fno-discard-value-names"])
     bc_file = function_to_test + ".bc"
     build_functions_for(bc_file, output_dir, True, function_to_test)
 

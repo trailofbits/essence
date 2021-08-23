@@ -8,7 +8,7 @@
     "eight_char_of_array": 255
   },
   "arguments": {
-    "barvictor": ["ab", "cd", null, "e", 102, null]
+    "array_null_termed": ["ab", "cd", null, "e", 102, null]
   }
 }
 

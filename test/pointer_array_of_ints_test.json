@@ -3,7 +3,7 @@
     "int_pointer_val_arg_second_value_in_array": 255
   },
   "arguments": {
-    "barvictor": [2,1]
+    "array_of_ints": [2,1]
   }
 }
 
