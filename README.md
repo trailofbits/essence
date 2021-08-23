@@ -2,7 +2,7 @@
 
 This project aims to extract functions from llvm bitcode files and generate executables for them.
 Functions can be specified by name and convenient json input templates will be generated in which their arguments (including globals) can be specified.
-The project is sub-devided into two components: `Essence` is the python tool which is meant for users and handles all of the end to end functionality, and `Handsanitizer` which is the c++ component which interacts directly with the LLVM bitcode modules and generates neccesary code/templates.
+The project is sub-devided into two components: `essence` is the python tool which is meant for users and handles all of the end to end functionality, and `handsanitizer` which is the c++ component which interacts directly with the LLVM bitcode modules and generates neccesary code/templates.
 
 ### Features:
 Essence currently supports:
@@ -14,20 +14,21 @@ Essence currently supports:
 
 It does _not_ support
 * Bitcode modules containing one of the following LLVM types `Function`,`Vector` `x86amx`, or `x86_mmx`
-* Functions that use `stdio`
+* Functions that use `stdin`/`stdout`
 * Purity discovery, meaning that if your program is compiled with -O0 all functions will be listed as impure
 
 
 ## Install instructions
 
 ```shell
-$ sudo apt install nlohmann-json3-dev
-$ git clone --recursive https://github.com/trailofbits/essence
+$ git clone https://github.com/trailofbits/essence
 $ cd essence
 $ cmake CMakeLists.txt
 $ make 
 $ pip install -e ./
 ```
+
+it is required to specify the `-e` flag as otherwise pathing between `essence` and `handsanitizer` will break.
 
 
 ## Commands  
@@ -108,7 +109,6 @@ If a value is a pointer we support the following inputs:
    "char_ptr_val_3": ["a"], // alternatively you can box it in an array, this will prevent null termination
    "char_ptr_val_4": 65, // ascii numeric values are also supported
    "char_ptr_val_5": ["abc", 65, "bc", null] // you can mix and match, if you want a null termination with array syntax you add a null suffix
-           
 }
 ```
 
@@ -193,5 +193,3 @@ If an input module uses variables which also get used internally for essence (li
 
 Note that since essence extracts functions with their used globals beforehand, it is possible to generate a binary for a function  which does not yield a conflict, while there simultaneously exists functions which do generate conflict.
 
-
-### TODO: Write a piece about recursively extractely functions and purity
