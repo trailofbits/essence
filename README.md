@@ -27,6 +27,11 @@ $ cmake CMakeLists.txt
 $ make 
 $ pip install -e ./
 ```
+Or as a one-liner
+```shell
+git clone https://github.com/trailofbits/essence && cd essence && cmake CMakeLists.txt && make && pip install -e ./
+```
+
 
 it is required to specify the `-e` flag as otherwise pathing between `essence` and `handsanitizer` will break.
 
