@@ -8,7 +8,13 @@ from essence.cli import essence_build_read_none, essence_build_write_only, build
 import shutil
 
 # empty directory first as some our test depend on the (non)existence of files
-shutil.rmtree("output")
+output = Path("output")
+if output.exists():
+    if output.is_dir():
+        shutil.rmtree("output")
+    else:
+        shutil.rm("output")
+
 Path("output").mkdir(parents=True, exist_ok=True)
 
 handsan_path = "../handsan"
