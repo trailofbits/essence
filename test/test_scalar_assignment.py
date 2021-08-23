@@ -150,6 +150,7 @@ def test_pointer_in_struct():
 
 
 def test_essence_strips_out_unused_globals():
+    subprocess.run(["clang", "stripped_function_test.c", "-c", "-emit-llvm", "-fno-discard-value-names"])
     test_file = "stripped_function_test.bc"
     build_functions_for(test_file, output_dir, True, "stripped_function")
     target_json_path = os.path.join(output_dir, 'stripped_function.json')
