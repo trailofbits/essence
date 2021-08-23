@@ -17,17 +17,6 @@ It does _not_ support
 * Functions that use `stdio`
 * Purity discovery, meaning that if your program is compiled with -O0 all functions will be listed as impure
 
-### About purity
-Our focus is primarly "pure" functions. There are two major categories of pure functions
-
-1. `read none`:
-   This category returns the same value for the same input every no matter how often the function is called.
-   Additionally a `read none` functions are not allowed to have side-effects and hence are not allowed to touch memory at all. 
-
-2. `write only`: These functions are similar to `read none` with the exception that these _are_ allowed to _write_ to memory. Since they are not allowed read from memory the behaviour should still be identical for every identical input, but this class can save for instance the return values to a global variable 
-
-
-
 
 ## Install instructions
 
@@ -56,6 +45,15 @@ Build all functions inside input.bc that are of purity level `read-none`
 
 #### essence --build-write-only <input.bc>
 Build all functions inside input.bc that are of purity level `write-only`
+
+### About purity
+Our focus is primarly "pure" functions. There are two major categories of pure functions
+
+1. `read none`:
+   This category returns the same value for the same input every no matter how often the function is called.
+   Additionally a `read none` functions are not allowed to have side-effects and hence are not allowed to touch memory at all. 
+
+2. `write only`: These functions are similar to `read none` with the exception that these _are_ allowed to _write_ to memory. Since they are not allowed read from memory the behaviour should still be identical for every identical input, but this class can save for instance the return values to a global variable 
 
 
 
