@@ -25,8 +25,8 @@ namespace handsanitizer{
             jsonOutputGenerator = std::make_unique<JsonOutputGenerator>(declarationManager);
         }
 
-        void generate_cpp_file_for_function(std::string dest_file_path);
-        void generate_json_input_template_file(std::string dest_file_path);
+        void generate_cpp_file_for_function(const std::string& dest_file_path);
+        void generate_json_input_template_file(const std::string& dest_file_path);
 
         std::vector<GlobalVariable> getGlobals();
 
@@ -36,13 +36,13 @@ namespace handsanitizer{
         std::shared_ptr<DeclarationManager> declarationManager;
 
         std::string getTextForUserDefinedTypes();
-        std::string getTextForUserDefinedType(Type *type);
+        static std::string getTextForUserDefinedType(Type *type);
 
 
-        std::string getUntypedArgumentNames(Function &f);
+        static std::string getUntypedArgumentNames(Function &f);
 
         std::string getGlobalDeclarationsText();
         std::string getFreeVectorFreeText() ;
-        std::string getMainText();
+        static std::string getMainText();
     };
 }

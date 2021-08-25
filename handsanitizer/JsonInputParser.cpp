@@ -14,7 +14,7 @@ namespace handsanitizer {
         return getParserRetrievalText(jsonInputVariableName, globals, true);
     }
 
-    std::string JsonInputParser::getParserRetrievalText(const std::string& jsonInputVariableName, std::vector<NamedVariable> args,
+    std::string JsonInputParser::getParserRetrievalText(const std::string& jsonInputVariableName, const std::vector<NamedVariable>& args,
                                                         bool isForGlobals) {
         std::stringstream s;
 
@@ -97,7 +97,7 @@ namespace handsanitizer {
             accessDelimiter = "->";
 
         std::vector<JsonParsingCandidate> parsingCandidatesForMembers;
-        for (auto member : candidate.type->getNamedMembers()) {
+        for (auto& member : candidate.type->getNamedMembers()) {
             if (!member.getType()->isArrayTy()) {
                 JsonParsingCandidate memberCandidate{
                         .lvalueName = declarationManager->getUniqueTmpCPPVariableNameFor(member.getName()),
@@ -123,7 +123,7 @@ namespace handsanitizer {
         }
 
 
-        for (auto member : candidate.type->getNamedMembers()) {
+        for (auto& member : candidate.type->getNamedMembers()) {
             // arrays can be also of custom types with arbitrary but finite amounts of nesting, so we need to recurse
             if (member.getType()->isArrayTy()) {
                 int arrSize = member.getType()->getArrayNumElements();
@@ -342,6 +342,7 @@ namespace handsanitizer {
     std::string JsonInputParser::getStringFromJson(const std::string& output_var, const std::string& json_name, const std::string& tmp_name_1,
                                                    const std::string& tmp_name_2, bool addNullTermination) {
         std::stringstream s;
+        //TODO Reimplement null termination
         s << "std::string " << tmp_name_1 << " = " << json_name << ".get<std::string>();" << std::endl;
         s << output_var << " = " << tmp_name_1 << ".data();";
         return s.str();

@@ -25,7 +25,7 @@ public:
 private:
     std::shared_ptr<DeclarationManager> declarationManager;
     std::vector<std::pair<Type*, std::string>> structParsingHelperFunctions;
-    std::string getParserRetrievalText(const std::string& jsonInputVariableName, std::vector<handsanitizer::NamedVariable> args, bool isForGlobals = false);
+    std::string getParserRetrievalText(const std::string& jsonInputVariableName, const std::vector<handsanitizer::NamedVariable>& args, bool isForGlobals = false);
     std::string getParserRetrievalForNamedType(const JsonParsingCandidate &candidate);
 
     std::string getPointerToStructParserFunctionDefinitions(Type* type);

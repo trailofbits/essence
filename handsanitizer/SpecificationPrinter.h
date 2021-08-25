@@ -8,7 +8,7 @@
 namespace handsanitizer {
     class SpecificationPrinter {
     public:
-        SpecificationPrinter(std::vector<handsanitizer::FunctionCallerGenerator> &functions) : functions(functions) {};
+        explicit SpecificationPrinter(std::vector<handsanitizer::FunctionCallerGenerator> &functions) : functions(functions) {};
         void printSpecification(const std::string& outputDir, const std::string& fileName);
 
     private:

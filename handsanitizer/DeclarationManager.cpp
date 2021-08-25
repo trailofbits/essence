@@ -13,21 +13,7 @@ namespace handsanitizer {
      * If this function were not to guarantee uniqueness w.r.t it's arguments, then it would depend on the order which this function is called
      * and implicit orderings are bad
     */
-    std::string DeclarationManager::getUniqueTmpCPPVariableNameFor(std::vector<std::string> prefixes) {
-        auto candidate = joinStrings(prefixes, GENERATE_FORMAT_CPP_VARIABLE);
 
-        // This is explicitly not random
-        int counter = 0;
-        while (true) {
-            candidate = candidate + getRandomDummyVariableName();
-            counter++;
-
-            if (!this->isNameDefined(candidate)) {
-                definedNamesForFunctionBeingGenerated.push_back(candidate);
-                return candidate;
-            }
-        }
-    }
 
     std::vector<std::string> TmpStringCandidates{
             "foo",
@@ -55,9 +41,7 @@ namespace handsanitizer {
     }
 
     std::string DeclarationManager::getUniqueTmpCPPVariableNameFor() {
-        std::vector<std::string> vec;
-        vec.push_back(getRandomDummyVariableName());
-        return getUniqueTmpCPPVariableNameFor(vec);
+        return getUniqueTmpCPPVariableNameFor(getRandomDummyVariableName());
     }
 
     bool DeclarationManager::isNameDefined(std::string name) {
@@ -67,7 +51,7 @@ namespace handsanitizer {
 
 
         bool reserved_anyway = std::find_if(std::begin(this->other_disallowed_names), std::end(this->other_disallowed_names),
-                                                [&name](std::string value) { return value == name; }) !=
+                                                [&name](const std::string& value) { return value == name; }) !=
                                    std::end(this->other_disallowed_names);
 
         bool defined_as_global = std::find_if(std::begin(this->globals), std::end(this->globals),
@@ -77,10 +61,19 @@ namespace handsanitizer {
         return defined_as_tmp_variable || defined_as_global || reserved_anyway;
     }
 
-    std::string DeclarationManager::getUniqueTmpCPPVariableNameFor(std::string prefix) {
-        std::vector<std::string> vec;
-        vec.push_back(prefix);
-        return getUniqueTmpCPPVariableNameFor(vec);
+    std::string DeclarationManager::getUniqueTmpCPPVariableNameFor(const std::string& input) {
+        // This is explicitly not random
+        auto candidate = input;
+        int counter = 0;
+        while (true) {
+            candidate.append(getRandomDummyVariableName());
+            counter++;
+
+            if (!this->isNameDefined(candidate)) {
+                definedNamesForFunctionBeingGenerated.push_back(candidate);
+                return candidate;
+            }
+        }
     }
 
 
@@ -93,7 +86,7 @@ namespace handsanitizer {
 
     std::string DeclarationManager::joinStrings(std::vector<std::string> strings, StringJoiningFormat format) {
         std::stringstream output;
-        std::string delimiter = "";
+        std::string delimiter;
         if (format == GENERATE_FORMAT_CPP_ADDRESSING)
             delimiter = CPP_ADDRESSING_DELIMITER;
         if (format == GENERATE_FORMAT_CPP_VARIABLE)
@@ -101,7 +94,7 @@ namespace handsanitizer {
 
         bool hasSkippedRoot = false;
 
-        for (std::string s : strings) {
+        for (auto& s : strings) {
             if (format != GENERATE_FORMAT_CPP_VARIABLE && s == POINTER_DENOTATION)
                 continue; // don't print the pointer markings in lvalue as these are abstracted away
             if (format == GENERATE_FORMAT_JSON_ARRAY_ADDRESSING ||
@@ -136,7 +129,7 @@ namespace handsanitizer {
     }
 
 
-    std::string DeclarationManager::registerVariableToBeFreed(std::string variable_name) {
+    std::string DeclarationManager::registerVariableToBeFreed(const std::string& variable_name) {
         std::stringstream output;
         output << getFreeVectorName() << ".push_back((void*)" << variable_name << ");";
         return output.str();

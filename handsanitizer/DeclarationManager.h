@@ -36,11 +36,10 @@ public:
 
     std::string joinStrings(std::vector<std::string> strings, StringJoiningFormat format);
 
-    std::string getUniqueTmpCPPVariableNameFor(std::vector<std::string> prefixes);
-    std::string getUniqueTmpCPPVariableNameFor(std::string prefix);
+    std::string getUniqueTmpCPPVariableNameFor(const std::string& candidate);
     std::string getUniqueTmpCPPVariableNameFor();
     std::string getUniqueLoopIteratorName();
-    std::string registerVariableToBeFreed(std::string variable_name);
+    std::string registerVariableToBeFreed(const std::string& variable_name);
 
     std::string getFreeVectorName();
 
@@ -68,7 +67,7 @@ private:
     std::vector<std::string> other_disallowed_names;
     bool freeVectorNameHasBeenSet = false;
     std::string freeVectorVariableName;
-    std::string getRandomDummyVariableName();
+    static std::string getRandomDummyVariableName();
 };
 
 };

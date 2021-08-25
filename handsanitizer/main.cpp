@@ -6,8 +6,6 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Type.h"
-
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
@@ -15,39 +13,19 @@
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MemoryBuffer.h"
-#include "llvm/Support/ToolOutputFile.h"
-#include "llvm/Support/WithColor.h"
 #include <system_error>
 #include <iostream>
-#include <sstream>
 #include <fstream>
-#include "llvm/IR/LegacyPassManager.h"
 
 
 
 #include "llvm/Pass.h"
-#include "llvm/IR/Function.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/PassManager.h"
-#include "llvm/IR/CallingConv.h"
-#include "llvm/IR/Verifier.h"
-#include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/LegacyPassManager.h"
 
-#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/TargetRegistry.h"
-#include "llvm/Support/TargetSelect.h"
-#include "llvm/Target/TargetMachine.h"
-#include "llvm/Target/TargetOptions.h"
-
-#include "llvm/Transforms/Utils.h"
 #include <filesystem>
 
-#include "handsan.hpp"
 #include "LLVMExtractor.hpp"
 #include <argparse/argparse.hpp>
 #include "SpecificationPrinter.h"

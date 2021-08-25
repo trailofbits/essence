@@ -29,7 +29,7 @@ namespace handsanitizer {
             for (auto &member: type.getNamedMembers()) {
                 nlohmann::json memberJson;
 
-                auto firstOccurrenceOfType = std::find_if(typePath.begin(), typePath.end(), [member](std::pair<Type*, std::string> pair){ return member.type == pair.first;});
+                auto firstOccurrenceOfType = std::find_if(typePath.begin(), typePath.end(), [member](const std::pair<Type*, std::string>& pair){ return member.type == pair.first;});
                 if(firstOccurrenceOfType == typePath.end()){
                     std::stringstream path;
                     for(auto& typeInPath : typePath)
