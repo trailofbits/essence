@@ -4,18 +4,25 @@ This project aims to extract functions from llvm bitcode files and generate exec
 Functions can be specified by name and convenient json input templates will be generated in which their arguments (including globals) can be specified.
 The project is sub-divided into two components: `essence` is the python tool which is meant for users and handles all of the end-to-end functionality, and `handsanitizer` which is the c++ component that interacts directly with the LLVM bitcode modules and generates neccesary code/templates.
 
+![Demo gif](demo.gif)
+
 ### Features:
 The project currently supports:
 * Listing all function signatures inside an llvm bitcode module sorted by purity
 * Generating executables for a specified list of functions
-* Easy json in/output. Input abstracts memory away allowing the user to specify values directly underneath the pointers as well as directly past it.
+  * Easy json in/output. 
+  abstracts memory away allowing the user to specify values directly underneath the pointers as well as directly past it. 
+  * Generates minimal templates, global variables not touched by the function are not included 
 * Supports aggregate types `arrays`, `structs` and `unions`
 * Supports circular pointer type definitions, i.e `struct X { struct X* x};`
+* Supports functions calling other functions 
 
-It does _not_ support
+
+It does _not_ support:
+* Purity discovery, meaning that if your program is compiled with -O0 all functions will be listed as impure
 * Bitcode modules containing one of the following LLVM types `Function`,`Vector` `x86amx`, or `x86_mmx`
 * Functions that use `stdin`/`stdout`
-* Purity discovery, meaning that if your program is compiled with -O0 all functions will be listed as impure
+
 
 
 ## Install instructions
@@ -121,7 +128,7 @@ If a value is a pointer we support the following inputs:
 Consider the example of an linked list
 
 ```c
-[typedef struct linked_list {
+typedef struct linked_list {
     struct linked_list* next;
     int value;
 };
@@ -130,7 +137,7 @@ int print_list_value_of_linked_list(linked_list ll){
     if(ll->next != NULL)
         return print_list_value_of_linked_list(next);
     return ll.value;
-}]()
+}
 ```
 
 Essence with its input templates exposes a mechanism to set the underlying value of pointers and thus also to `linked_list.next`.
