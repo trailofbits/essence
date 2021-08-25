@@ -2,12 +2,12 @@
 
 This project aims to extract functions from llvm bitcode files and generate executables for them.
 Functions can be specified by name and convenient json input templates will be generated in which their arguments (including globals) can be specified.
-The project is sub-devided into two components: `essence` is the python tool which is meant for users and handles all of the end to end functionality, and `handsanitizer` which is the c++ component which interacts directly with the LLVM bitcode modules and generates neccesary code/templates.
+The project is sub-divided into two components: `essence` is the python tool which is meant for users and handles all of the end-to-end functionality, and `handsanitizer` which is the c++ component that interacts directly with the LLVM bitcode modules and generates neccesary code/templates.
 
 ### Features:
-Essence currently supports:
+The project currently supports:
 * Listing all function signatures inside an llvm bitcode module sorted by purity
-* Generating executables for a specified list of functions 
+* Generating executables for a specified list of functions
 * Easy json in/output. Input abstracts memory away allowing the user to specify values directly underneath the pointers as well as directly past it.
 * Supports aggregate types `arrays`, `structs` and `unions`
 * Supports circular pointer type definitions, i.e `struct X { struct X* x};`
@@ -36,38 +36,38 @@ git clone https://github.com/trailofbits/essence && cd essence && cmake CMakeLis
 it is required to specify the `-e` flag as otherwise pathing between `essence` and `handsanitizer` will break.
 
 
-## Commands  
-#### essence <input.bc> 
-This command lists the functions in a bitcode file, together with their signature and purity level 
+## Commands
+#### `essence <input.bc>`
+This command lists the functions in a bitcode file, together with their signature and purity level
 
 
-#### essence --build [--output/-o outputdir] [--no-template] <input.bc> f1 f2 
+#### `essence --build [--output/-o outputdir] [--no-template] <input.bc> f1 f2`
 This command will build an executable for f1 and f2.
 The output directory can be specified, as well as that the json input template should not be (re)generated to preserve arguments inside the template file.
 
 
-#### essence --build-read-none <input.bc>
+#### `essence --build-read-none <input.bc>`
 Build all functions inside input.bc that are of purity level `read-none`
 
-#### essence --build-write-only <input.bc>
+#### `essence --build-write-only <input.bc>`
 Build all functions inside input.bc that are of purity level `write-only`
 
 ### About purity
-Our focus is primarly "pure" functions. There are two major categories of pure functions
+Our focus is primarily "pure" functions. There are two major categories of pure functions
 
 1. `read none`:
    This category returns the same value for the same input every no matter how often the function is called.
-   Additionally a `read none` functions are not allowed to have side-effects and hence are not allowed to touch memory at all. 
+   Additionally, a `read none` functions are not allowed to have side-effects and hence are not allowed to touch memory at all.
 
-2. `write only`: These functions are similar to `read none` with the exception that these _are_ allowed to _write_ to memory. Since they are not allowed read from memory the behaviour should still be identical for every identical input, but this class can save for instance the return values to a global variable 
+2. `write only`: These functions are similar to `read none` with the exception that these _are_ allowed to _write_ to memory. Since they are not allowed to read from memory the behavior should still be identical for every identical input, but this class can save for instance the return values to a global variable
 
 
 
 ## Input routing / output routing
-### Input 
-To provide arguments to the function for which a standalone executable has been generated we provide convienent to use json input templates. These contain all global variables as well as a complete resprentation of the arguments possible arguments.
+### Input
+To provide arguments to the function for which a standalone executable has been generated we provide convenient to use json input templates. These contain all global variables as well as a complete representation of the arguments.
 
-Essence also allows for setting the values underlying to value which point to memory.   
+`essence` also allows for setting the values to which the pointer points.
 
 
 example:
@@ -118,7 +118,7 @@ If a value is a pointer we support the following inputs:
 ```
 
 #### Routing over Cyclic definitions
-Consider the example of an linked list 
+Consider the example of an linked list
 
 ```c
 [typedef struct linked_list {
@@ -133,8 +133,8 @@ int print_list_value_of_linked_list(linked_list ll){
 }]()
 ```
 
-Essence with it's input templates exposes a mechanism to set the underlying value of pointers and thus also to `linked_list.next`.
-This recurses infinitly, we therefore have a special field within the specification and input template denoting how it cycles and provide an easy way to generate desired recursive input.
+Essence with its input templates exposes a mechanism to set the underlying value of pointers and thus also to `linked_list.next`.
+This recurses infinitely, we therefore have a special field within the specification and input template denoting how it cycles and provide an easy way to generate desired recursive input.
 
 ```json
 {
@@ -151,7 +151,7 @@ This recurses infinitly, we therefore have a special field within the specificat
 }
 
 ```
-The `cyclic_with_<path_to_object>` denotes that the entire object located at `<path>` may be copy pasted at the location an arbtirary amount of times. With the requirement that it terminates by a `null` value.
+The `cyclic_with_<path_to_object>` denotes that the entire object located at `<path>` may be copy-pasted at the location an arbitrary amount of times. With the requirement that it terminates by a `null` value.
 
 ```json
 {
@@ -177,24 +177,24 @@ The `cyclic_with_<path_to_object>` denotes that the entire object located at `<p
 
 
 ### Output
-After the function has been called, we return the output of the function together with all global variables as a json object on std out. 
+After the function has been called, we return the output of the function together with all global variables as a json object on std out.
 
 
 
 
 
 ## Limitations
-Currently, essence is unable to handle the following 
+Currently, `essence` is unable to handle the following
 
 ### Function types
-If any function type is present in the binary essence has to halt its analysis.
-When this causes problems for unrelated functions the user should first extract the relevant parts of the module out. 
+If any function type is present in the binary `essence` has to halt its analysis.
+When this causes problems for unrelated functions the user should first extract the relevant parts of the module out.
 
 
 
-### Functions that write to the same locations as essence
-Essence tries to expose all global variables used in an bitcode module.
-If an input module uses variables which also get used internally for essence (like stdio) then we run into the issue that we cannot generate binaries properly anymore.
+### Functions that write to the same locations as `essence`
+`essence` tries to expose all global variables used in a bitcode module.
+If an input module uses variables that also get used internally for `essence` (like stdio) then we run into the issue that we cannot generate binaries properly anymore.
 
-Note that since essence extracts functions with their used globals beforehand, it is possible to generate a binary for a function  which does not yield a conflict, while there simultaneously exists functions which do generate conflict.
+Note that since `essence` extracts functions with their used globals beforehand, it is possible to generate a binary for a function that does not yield a conflict, while there simultaneously exist functions that do generate conflict.
 
