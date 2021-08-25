@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <nlohmann/json.hpp>
+#include <filesystem>
 #include "FunctionCallerGenerator.h"
 
 
@@ -13,10 +14,9 @@ namespace handsanitizer {
 
     private:
         std::vector<handsanitizer::FunctionCallerGenerator> &functions;
-
         std::vector<GlobalVariable> getSetOfUniqueGlobalVariables();
 
-        static std::string getOutputFilename(const std::string &outputDir, const std::string &fileName) ;
+        static std::filesystem::path getPathToOutputFile(const std::string &outputDir, const std::string &fileName) ;
         nlohmann::json getUnrolledTypeAsJson(Type &type, std::vector<std::pair<Type *, std::string>> typePath);
     };
 }

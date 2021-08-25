@@ -13,7 +13,7 @@ namespace handsanitizer {
     ModuleFromLLVMModuleFactory::ExtractAllFunctionCallerGenerators(llvm::LLVMContext &context, std::unique_ptr<llvm::Module> const &mod) {
         std::vector<FunctionCallerGenerator> fcgs;
         for (auto &function : mod->functions()) {
-            this->defined_llvm_types.clear();
+            this->definedLlvmTypes.clear();
 
             if (!functionHasCABI(function))
                 continue;
@@ -48,9 +48,9 @@ namespace handsanitizer {
             return;
 
         if (this->hasStructDefined(type)) {
-            auto r = std::find_if(defined_llvm_types.begin(), defined_llvm_types.end(),
+            auto r = std::find_if(definedLlvmTypes.begin(), definedLlvmTypes.end(),
                                   [&type](std::pair<Type *, llvm::Type *> defined_type) { return type == defined_type.second; });
-            if (r != defined_llvm_types.end()) // llvm type was already declared and hence must be cyclic
+            if (r != definedLlvmTypes.end()) // llvm type was already declared and hence must be cyclic
                 r->first->isCyclicWithItself = true;
             return;
         }
@@ -61,7 +61,7 @@ namespace handsanitizer {
 
         std::string structName = getStructNameFromLLVMType(declarationManager, type);
         Type *newHandsanType = new Type(TYPE_NAMES::STRUCT, structName, isUnion);
-        this->defined_llvm_types.emplace_back(newHandsanType, type);
+        this->definedLlvmTypes.emplace_back(newHandsanType, type);
         previouslySeenTypes.push_back(type);
         std::vector<NamedVariable> members;
         for (int i = 0; i < type->getStructNumElements(); i++) {
@@ -79,10 +79,10 @@ namespace handsanitizer {
         if (structName.empty())
             structName = declarationManager->getUniqueTmpCPPVariableNameFor("anon_struct");
         else if (structName.find("struct.") != std::string::npos)
-            structName = structName.replace(0, 7, ""); //removes struct. prefix
+            structName =  structName.erase(0, 7); //removes struct. prefix
 
         else if (structName.find("union.") != std::string::npos)
-            structName = structName.replace(0, 6, ""); //removes union. prefix
+            structName = structName.erase(0, 6); //removes union. prefix
 
         return structName;
     }
@@ -150,7 +150,7 @@ namespace handsanitizer {
         }
     }
 
-    bool ModuleFromLLVMModuleFactory::shouldGlobalBeIncluded(const llvm::GlobalValue &global) const {
+    bool ModuleFromLLVMModuleFactory::shouldGlobalBeIncluded(const llvm::GlobalValue &global) {
         return !global.getType()->isFunctionTy() &&
                !(global.getType()->isPointerTy() && global.getType()->getPointerElementType()->isFunctionTy()) &&
                !global.isPrivateLinkage(global.getLinkage()) &&
@@ -161,11 +161,11 @@ namespace handsanitizer {
     Function::Function(std::string name, Type *retType, std::vector<Argument> arguments, Purity purity)
             : name(std::move(name)), retType(retType), arguments(std::move(arguments)), purity(purity) {}
 
-    std::string Function::getFunctionSignature() {
+    std::string Function::getFunctionSignature() const{
         return this->retType->getCTypeName() + " " + this->name + "(" + this->getTypedArgumentNames() + ");";
     }
 
-    std::string Function::getTypedArgumentNames() {
+    std::string Function::getTypedArgumentNames() const {
         std::stringstream output;
         for (auto &args : this->arguments) {
             output << args.getType()->getCTypeName() << " " << args.getName() << ", ";
@@ -235,16 +235,16 @@ namespace handsanitizer {
         return true;
     }
 
-    bool ModuleFromLLVMModuleFactory::hasStructDefined(llvm::Type *type) {
-        for (auto &user_type : this->defined_llvm_types) {
+    bool ModuleFromLLVMModuleFactory::hasStructDefined(llvm::Type *type) const {
+        for (auto &user_type : this->definedLlvmTypes) {
             if (user_type.second == type)
                 return true;
         }
         return false;
     }
 
-    Type *ModuleFromLLVMModuleFactory::getDefinedStructByLLVMType(llvm::Type *type) {
-        for (auto &user_type : this->defined_llvm_types) {
+    Type *ModuleFromLLVMModuleFactory::getDefinedStructByLLVMType(llvm::Type *type) const {
+        for (auto &user_type : this->definedLlvmTypes) {
             if (user_type.second == type)
                 return user_type.first;
         }
@@ -303,7 +303,7 @@ namespace handsanitizer {
             }
         }
 
-        for (auto &udt : this->defined_llvm_types) {
+        for (auto &udt : this->definedLlvmTypes) {
             declarationManager->addDeclaration(udt.first);
         }
     }
@@ -347,7 +347,7 @@ namespace handsanitizer {
         }
     }
 
-    std::string Type::getTypeName() {
+    std::string Type::getTypeName() const {
         if (this->isVoidTy())
             return "void";
         else if (this->isPointerTy())

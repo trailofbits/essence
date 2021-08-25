@@ -68,20 +68,18 @@ namespace handsanitizer {
         setupFileStream << getMainText();
         std::string setupFileString = setupFileStream.str();
 
-        std::ofstream of;
-        of.open(dest_file_path, std::ofstream::out | std::ofstream::trunc);
+        std::ofstream of(dest_file_path, std::ofstream::out | std::ofstream::trunc);
         of << setupFileString;
-        of.close();
     }
 
 
     std::string FunctionCallerGenerator::getTextForUserDefinedTypes() {
         std::stringstream output;
-        std::reverse(declarationManager->user_defined_types.begin(), declarationManager->user_defined_types.end());
-        for (auto &custom_type : declarationManager->user_defined_types ) {
+        std::reverse(declarationManager->userDefinedTypes.begin(), declarationManager->userDefinedTypes.end());
+        for (auto &custom_type : declarationManager->userDefinedTypes ) {
             output << FunctionCallerGenerator::getTextForUserDefinedType(custom_type);
         }
-        std::reverse(declarationManager->user_defined_types.begin(), declarationManager->user_defined_types.end());
+        std::reverse(declarationManager->userDefinedTypes.begin(), declarationManager->userDefinedTypes.end());
         return output.str();
     }
 
@@ -181,8 +179,7 @@ namespace handsanitizer {
     }
 
     void FunctionCallerGenerator::generate_json_input_template_file(const std::string& dest_file_path) {
-        std::ofstream of;
-        of.open(dest_file_path, std::ofstream::out | std::ofstream::trunc);
+        std::ofstream of(dest_file_path, std::ofstream::out | std::ofstream::trunc);
 
         std::stringstream output;
 
@@ -214,7 +211,6 @@ namespace handsanitizer {
 
         auto j = nlohmann::json::parse(output.str());
         of << j.dump(4) << std::endl;
-        of.close();
     }
 
     std::string FunctionCallerGenerator::getMainText() {

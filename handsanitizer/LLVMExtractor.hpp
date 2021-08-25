@@ -34,10 +34,10 @@ namespace handsanitizer{
          * for instance the member names and struct names themselves might differ (for instance when the llvm type has no name)
          * and typically we recursively walk llvm types which is easier if we do it like this
          */
-        std::vector<std::pair<Type*, llvm::Type*>> defined_llvm_types;
+        std::vector<std::pair<Type*, llvm::Type*>> definedLlvmTypes;
 
-        bool hasStructDefined(llvm::Type *type);
-        Type *getDefinedStructByLLVMType(llvm::Type *type);
+        [[nodiscard]] bool hasStructDefined(llvm::Type *type) const;
+        [[nodiscard]] Type *getDefinedStructByLLVMType(llvm::Type *type) const;
         void defineStructIfNeeded(const std::shared_ptr<DeclarationManager>& declarationManager,
                                   llvm::Type *type,
                                   std::vector<llvm::Type *> &previouslySeenTypes);
@@ -49,6 +49,6 @@ namespace handsanitizer{
         Type*
         getReturnType(const llvm::Function &f, std::vector<handsanitizer::Argument> &args_of_func, const std::shared_ptr<DeclarationManager>& declarationManager);
 
-        bool shouldGlobalBeIncluded(const llvm::GlobalValue &global) const;
+        static bool shouldGlobalBeIncluded(const llvm::GlobalValue &global) ;
     };
 }

@@ -27,14 +27,14 @@ namespace handsanitizer{
 
 class DeclarationManager{
 public:
-    bool isNameDefined(std::string name);
+    [[nodiscard]] bool isNameDefined(std::string name) const;
     void addDeclaration(Type *f);
     void addDeclaration(const GlobalVariable &gv);
     void addDeclaration(const std::string &reserve_name);
 
     void clearGeneratedNames();
 
-    std::string joinStrings(std::vector<std::string> strings, StringJoiningFormat format);
+    std::string joinStrings(const std::vector<std::string>& strings, StringJoiningFormat format) const;
 
     std::string getUniqueTmpCPPVariableNameFor(const std::string& candidate);
     std::string getUniqueTmpCPPVariableNameFor();
@@ -48,7 +48,7 @@ public:
      * Generators need theses
      */
     std::vector<GlobalVariable> globals;
-    std::vector<Type*> user_defined_types;
+    std::vector<Type*> userDefinedTypes;
 private:
     std::vector<std::string> definedNamesForFunctionBeingGenerated;
 
@@ -58,16 +58,16 @@ private:
      * inputJson["top_level_struct"][iterator]["member_struct"]
      * Notice that the quotes are left out if they are iterators
      */
-    std::vector<std::string> iterator_names;
+    std::vector<std::string> iteratorNames;
     /*
      * There might still be a set of symbols in an extracted module that are not simply function name + globals
      * As even read_none functions can call other read_none functions, and these functions are also contained in the extracted module
      * Therefore we have a misc like set which captures those.
      */
-    std::vector<std::string> other_disallowed_names;
+    std::vector<std::string> otherDisallowedNames;
     bool freeVectorNameHasBeenSet = false;
     std::string freeVectorVariableName;
-    static std::string getRandomDummyVariableName();
+    static const std::string& getRandomDummyVariableName();
 };
 
 };

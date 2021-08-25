@@ -19,7 +19,7 @@ namespace handsanitizer {
     class Type {
     public:
         std::string getCTypeName();
-        std::string getTypeName();
+        std::string getTypeName() const;
 
         explicit Type(TYPE_NAMES typeName) : type(typeName){};
         Type(TYPE_NAMES typeName, unsigned int const intSize): type(typeName), integerSize(intSize){};
@@ -31,30 +31,30 @@ namespace handsanitizer {
 
 
         // scalar values
-        bool isVoidTy() { return type == TYPE_NAMES::VOID;};
-        bool isIntegerTy() { return type == TYPE_NAMES::INTEGER;};
-        bool isIntegerTy(int size) { return type == TYPE_NAMES::INTEGER && integerSize == size;};
-        [[nodiscard]] unsigned int getBitWidth() const{ return integerSize;};
-        bool isFloatTy() { return type == TYPE_NAMES::FLOAT;};
-        bool isDoubleTy() { return type == TYPE_NAMES::DOUBLE;};
+        [[nodiscard]] bool isVoidTy() const { return type == TYPE_NAMES::VOID;} ;
+        [[nodiscard]] bool isIntegerTy() const { return type == TYPE_NAMES::INTEGER;};
+        [[nodiscard]] bool isIntegerTy(int size) const { return type == TYPE_NAMES::INTEGER && integerSize == size;};
+        [[nodiscard]] unsigned int getBitWidth() const { return integerSize;};
+        [[nodiscard]] bool isFloatTy() const { return type == TYPE_NAMES::FLOAT;};
+        [[nodiscard]] bool isDoubleTy() const { return type == TYPE_NAMES::DOUBLE;};
 
         // array
-        bool isArrayTy() { return type == TYPE_NAMES::ARRAY;};
+        [[nodiscard]] bool isArrayTy() const { return type == TYPE_NAMES::ARRAY;};
         [[nodiscard]] int getArrayNumElements() const { return arraySize;};
-        Type *getArrayElementType() { return arrayElementType;};
+        [[nodiscard]] Type *getArrayElementType() const { return arrayElementType;};
 
         // pointer
-        bool isPointerTy() { return type == TYPE_NAMES::POINTER;};
-        Type *getPointerElementType() { return pointerElementType;};
+        [[nodiscard]] bool isPointerTy() const { return type == TYPE_NAMES::POINTER;};
+        [[nodiscard]] Type *getPointerElementType() const { return pointerElementType;};
 
         // struct
-        bool isStructTy() { return type == TYPE_NAMES::STRUCT;};
-        bool isUnion() const { return structIsUnion;};
+        [[nodiscard]] bool isStructTy() const { return type == TYPE_NAMES::STRUCT;};
+        [[nodiscard]] bool isUnion() const { return structIsUnion;};
         void setMembers(std::vector<NamedVariable> members) {
             structMembers = std::move(members);
         }
 
-        std::vector<NamedVariable> getNamedMembers() { return structMembers;};
+        [[nodiscard]] std::vector<NamedVariable> getNamedMembers() const { return structMembers;};
         /*
          * Denotes whether if following all members of the structure would eventually lead down to the same type
          */
@@ -109,11 +109,11 @@ namespace handsanitizer {
         Type *retType;
         std::vector<Argument> arguments; // implicitly ordered
         Purity purity;
-        std::string getFunctionSignature();
 
-        std::string getPurityName() const;
+        [[nodiscard]] std::string getFunctionSignature() const;
+        [[nodiscard]] std::string getPurityName() const;
 
     private:
-        std::string getTypedArgumentNames();
+        [[nodiscard]] std::string getTypedArgumentNames() const;
     };
 }

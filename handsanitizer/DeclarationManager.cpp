@@ -36,7 +36,7 @@ namespace handsanitizer {
             "ted",
     };
 
-    std::string DeclarationManager::getRandomDummyVariableName() {
+    const std::string &DeclarationManager::getRandomDummyVariableName() {
         return TmpStringCandidates[rand() % TmpStringCandidates.size()];
     }
 
@@ -44,24 +44,24 @@ namespace handsanitizer {
         return getUniqueTmpCPPVariableNameFor(getRandomDummyVariableName());
     }
 
-    bool DeclarationManager::isNameDefined(std::string name) {
+    bool DeclarationManager::isNameDefined(std::string name) const {
         bool defined_as_tmp_variable = std::find(std::begin(this->definedNamesForFunctionBeingGenerated),
                                                  std::end(this->definedNamesForFunctionBeingGenerated), name) !=
                                        std::end(this->definedNamesForFunctionBeingGenerated);
 
 
-        bool reserved_anyway = std::find_if(std::begin(this->other_disallowed_names), std::end(this->other_disallowed_names),
-                                                [&name](const std::string& value) { return value == name; }) !=
-                                   std::end(this->other_disallowed_names);
+        bool reserved_anyway = std::find_if(std::begin(this->otherDisallowedNames), std::end(this->otherDisallowedNames),
+                                            [&name](const std::string &value) { return value == name; }) !=
+                               std::end(this->otherDisallowedNames);
 
         bool defined_as_global = std::find_if(std::begin(this->globals), std::end(this->globals),
-                                              [&name](GlobalVariable &g) { return g.getName() == name; }) !=
+                                              [&name](const GlobalVariable &g) { return g.getName() == name; }) !=
                                  std::end(this->globals);
 
         return defined_as_tmp_variable || defined_as_global || reserved_anyway;
     }
 
-    std::string DeclarationManager::getUniqueTmpCPPVariableNameFor(const std::string& input) {
+    std::string DeclarationManager::getUniqueTmpCPPVariableNameFor(const std::string &input) {
         // This is explicitly not random
         auto candidate = input;
         int counter = 0;
@@ -79,12 +79,12 @@ namespace handsanitizer {
 
     std::string DeclarationManager::getUniqueLoopIteratorName() {
         auto it_name = getUniqueTmpCPPVariableNameFor();
-        iterator_names.push_back(it_name);
+        iteratorNames.push_back(it_name);
         return it_name;
     }
 
 
-    std::string DeclarationManager::joinStrings(std::vector<std::string> strings, StringJoiningFormat format) {
+    std::string DeclarationManager::joinStrings(const std::vector<std::string>& strings, StringJoiningFormat format) const {
         std::stringstream output;
         std::string delimiter;
         if (format == GENERATE_FORMAT_CPP_ADDRESSING)
@@ -94,7 +94,7 @@ namespace handsanitizer {
 
         bool hasSkippedRoot = false;
 
-        for (auto& s : strings) {
+        for (auto &s : strings) {
             if (format != GENERATE_FORMAT_CPP_VARIABLE && s == POINTER_DENOTATION)
                 continue; // don't print the pointer markings in lvalue as these are abstracted away
             if (format == GENERATE_FORMAT_JSON_ARRAY_ADDRESSING ||
@@ -103,7 +103,7 @@ namespace handsanitizer {
                     hasSkippedRoot = true;
                     continue;
                 }
-                if (std::find(iterator_names.begin(), iterator_names.end(), s) != iterator_names.end())
+                if (std::find(iteratorNames.begin(), iteratorNames.end(), s) != iteratorNames.end())
                     output << "[" << s << "]";
                 else
                     output << "[\"" << s << "\"]";
@@ -122,21 +122,21 @@ namespace handsanitizer {
 
     std::string DeclarationManager::getFreeVectorName() {
         if (!freeVectorNameHasBeenSet) {
-            freeVectorVariableName = this->getUniqueTmpCPPVariableNameFor("vectorKeepingVariableNamesToBeFreed");
+            freeVectorVariableName = getUniqueTmpCPPVariableNameFor("vectorKeepingVariableNamesToBeFreed");
             freeVectorNameHasBeenSet = true;
         }
         return freeVectorVariableName;
     }
 
 
-    std::string DeclarationManager::registerVariableToBeFreed(const std::string& variable_name) {
+    std::string DeclarationManager::registerVariableToBeFreed(const std::string &variable_name) {
         std::stringstream output;
         output << getFreeVectorName() << ".push_back((void*)" << variable_name << ");";
         return output.str();
     }
 
     void DeclarationManager::addDeclaration(Type *f) {
-        this->user_defined_types.push_back(f);
+        this->userDefinedTypes.push_back(f);
     }
 
     void DeclarationManager::addDeclaration(const GlobalVariable &gv) {
@@ -144,11 +144,11 @@ namespace handsanitizer {
     }
 
     void DeclarationManager::addDeclaration(const std::string &reserve_name) {
-        this->other_disallowed_names.push_back(reserve_name);
+        this->otherDisallowedNames.push_back(reserve_name);
     }
 
     void DeclarationManager::clearGeneratedNames() {
         definedNamesForFunctionBeingGenerated.clear();
-        iterator_names.clear();
+        iteratorNames.clear();
     }
 }

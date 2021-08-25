@@ -408,14 +408,14 @@ namespace handsanitizer {
         std::stringstream output;
         //first declare then define
 
-        for(auto& udt : declarationManager->user_defined_types){
+        for(auto& udt : declarationManager->userDefinedTypes){
             auto funcName = declarationManager->getUniqueTmpCPPVariableNameFor("parse" + udt->getCTypeName() + "Struct");
             structParsingHelperFunctions.emplace_back(udt, funcName);
             std::cerr << "just declared func: " << funcName << std::endl;
             output << udt->getCTypeName() << "* " << funcName << "(const nlohmann::json& " << declarationManager->getUniqueTmpCPPVariableNameFor() << ");" << std::endl;
         }
 
-        for(auto& udt : declarationManager->user_defined_types){
+        for(auto& udt : declarationManager->userDefinedTypes){
             output << getPointerToStructParserFunctionDefinitions(udt);
         }
         return output.str();

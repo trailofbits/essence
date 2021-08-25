@@ -49,9 +49,8 @@ namespace handsanitizer {
     }
 
     void SpecificationPrinter::printSpecification(const std::string& outputDir, const std::string& fileName) {
-        std::string outputFilePath = getOutputFilename(outputDir, fileName);
-        std::ofstream of;
-        of.open(outputFilePath, std::ofstream::out | std::ofstream::trunc);
+        auto outputFilePath = getPathToOutputFile(outputDir, fileName);
+        std::ofstream of(outputFilePath, std::ofstream::out | std::ofstream::trunc);
 
         nlohmann::json json;
 
@@ -84,21 +83,6 @@ namespace handsanitizer {
         json["functions"] = functionsJson;
 
         of << json.dump(4) << std::endl;
-        of.close();
-    }
-
-
-    std::string
-    SpecificationPrinter::getOutputFilename(const std::string &outputDir, const std::string &fileName) {
-        std::filesystem::path p(fileName);
-        p.replace_extension("");
-        auto newFileName = p.filename().string();
-        auto outputPath = std::filesystem::path();
-        outputPath.append(outputDir);
-        outputPath.append(newFileName);
-        outputPath.replace_extension("spec.json");
-        auto outputFilePath = outputPath.string();
-        return outputFilePath;
     }
 
     std::vector<GlobalVariable> SpecificationPrinter::getSetOfUniqueGlobalVariables() {
@@ -115,5 +99,16 @@ namespace handsanitizer {
         std::vector<GlobalVariable> all_globals;
         all_globals.assign(s.begin(), s.end());
         return all_globals;
+    }
+
+    std::filesystem::path SpecificationPrinter::getPathToOutputFile(const std::string &outputDir, const std::string &fileName) {
+        std::filesystem::path p(fileName);
+        p.replace_extension("");
+        auto newFileName = p.filename().string();
+        auto outputPath = std::filesystem::path();
+        outputPath.append(outputDir);
+        outputPath.append(newFileName);
+        outputPath.replace_extension("spec.json");
+        return outputPath;
     }
 }

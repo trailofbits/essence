@@ -64,8 +64,8 @@ int main(int argc, char** argv){
     llvm::BitcodeFileContents IF = ExitOnErr(llvm::getBitcodeFileContents(*MB));
 
     std::string output_dir = program.get<std::string>("-o");
-    if(!std::filesystem::exists(output_dir))
-        std::filesystem::create_directory(output_dir);
+
+    std::filesystem::create_directories(output_dir);
 
     bool buildFlag = program.get<bool>("-b");
     bool skipInputTemplate = program.get<bool>("--no-template");
@@ -78,7 +78,10 @@ int main(int argc, char** argv){
         auto extractedFunctions = factory.ExtractAllFunctionCallerGenerators(Context, mod);
         if(buildFlag == false){
             handsanitizer::SpecificationPrinter specPrinter(extractedFunctions);
+
+
             specPrinter.printSpecification(output_dir, inputFilename);
+
         }
         else{
             for(auto& f : extractedFunctions){
