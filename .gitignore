@@ -22,7 +22,7 @@
 *.dll
 
 # Fortran module files
-*.declarationManager
+*.mod
 *.smod
 
 # Compiled Static libraries
