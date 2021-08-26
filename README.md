@@ -79,7 +79,7 @@ To provide arguments to the function for which a standalone executable has been 
 
 
 example:
-```
+```c
 typedef struct A {
    int v;
 } A;
