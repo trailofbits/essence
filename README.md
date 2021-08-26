@@ -28,7 +28,7 @@ It does _not_ support:
 ## Install instructions
 
 ```shell
-$ sudo apt install llvm-11 llvm-11-tools 
+$ sudo apt install llvm-11 llvm-11-tools
 $ git clone https://github.com/trailofbits/essence
 $ cd essence
 $ cmake CMakeLists.txt
