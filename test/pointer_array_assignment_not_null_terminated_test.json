@@ -1,0 +1,9 @@
+{
+  "globals": {
+    "third_char_of_non_null_terminated_array": 255
+  },
+  "arguments": {
+    "array_non_null": ["ab"]
+  }
+}
+

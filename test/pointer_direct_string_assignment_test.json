@@ -1,0 +1,10 @@
+{
+  "globals": {
+    "second_char_value_string": 255,
+    "third_char_of_string": 255
+  },
+  "arguments": {
+    "direct_string": "ab"
+  }
+}
+
