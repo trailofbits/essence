@@ -1,7 +1,7 @@
 # Essence
 
-This project aims to extract functions from llvm bitcode files and generate executables for them.
-Functions can be specified by name and convenient json input templates will be generated in which their arguments (including globals) can be specified.
+This project aims to generate stand-alone executables for functions residing in llvm bitcode modules.
+Functions can be specified by name and convenient JSON input templates will be generated in which their arguments (including globals) can be specified.
 The project is sub-divided into two components: `essence` is the python tool which is meant for users and handles all of the end-to-end functionality, and `handsanitizer` which is the c++ component that interacts directly with the LLVM bitcode modules and generates neccesary code/templates.
 
 ![Demo gif](demo.gif)
@@ -10,7 +10,7 @@ The project is sub-divided into two components: `essence` is the python tool whi
 The project currently supports:
 * Listing all function signatures inside an llvm bitcode module sorted by purity
 * Generating executables for a specified list of functions
-  * Easy json in/output. 
+  * Easy JSON in/output. 
   abstracts memory away allowing the user to specify values directly underneath the pointers as well as directly past it. 
   * Generates minimal templates, global variables not touched by the function are not included 
 * Supports aggregate types `arrays`, `structs` and `unions`
@@ -48,9 +48,9 @@ it is required to specify the `-e` flag as otherwise pathing between `essence` a
 This command lists the functions in a bitcode file, together with their signature and purity level
 
 
-#### `essence --build [--output/-o outputdir] [--no-template] <input.bc> f1 f2`
+#### `essence --build [--output/-o outputdir] [--no-template] <input.bc> <list_of_function_names>`
 This command will build an executable for f1 and f2.
-The output directory can be specified, as well as that the json input template should not be (re)generated to preserve arguments inside the template file.
+The output directory can be specified, as well as that the JSON input template should not be (re)generated to preserve arguments inside the template file.
 
 
 #### `essence --build-read-none <input.bc>`
@@ -72,7 +72,7 @@ Our focus is primarily "pure" functions. There are two major categories of pure 
 
 ## Input routing / output routing
 ### Input
-To provide arguments to the function for which a standalone executable has been generated we provide convenient to use json input templates. These contain all global variables as well as a complete representation of the arguments.
+To provide arguments to the function for which a standalone executable has been generated we provide convenient to use JSON input templates. These contain all global variables as well as a complete representation of the arguments.
 
 `essence` also allows for setting the values to which the pointer points.
 
@@ -184,7 +184,7 @@ The `cyclic_with_<path_to_object>` denotes that the entire object located at `<p
 
 
 ### Output
-After the function has been called, we return the output of the function together with all global variables as a json object on std out.
+After the function has been called, we return the output of the function together with all global variables as a JSON object on std out.
 
 
 
