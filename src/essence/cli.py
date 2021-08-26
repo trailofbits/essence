@@ -48,7 +48,7 @@ def essence():
 
     if input_file.suffix == '.c':
         print("got .c file as input, you probably meant .bc", file=sys.stderr)
-        return;
+        return
 
     if input_file.suffix == '.bc':
         if build_execs:
@@ -71,10 +71,8 @@ def essence():
         essence_list_signatures(input_file)
 
 
-#
-#
-#
-# # lists function signatures
+
+# lists function signatures
 def essence_list_signatures(spec_file: Path):
     with spec_file.open("r") as j:
         contents = json.loads(j)
@@ -90,16 +88,12 @@ def essence_list_signatures(spec_file: Path):
                 print("\t", func['name'] + ":", func['signature'])
 
 
-#
-# # generates and prints spec
+# generates and prints spec
 def essence_generate_spec(bc_file: Path, output: str):
     subprocess.run([handsan_path, "-o", output, bc_file])
 
 
-#
-#
-#
-# # build the actual functions
+# build the actual functions
 def essence_build(bc_file: Path, output: str, generate_input_template: bool, function_names: [str]):
     print("----------------- building functions --------------------")
     for func_name in function_names:
