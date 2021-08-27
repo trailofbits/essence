@@ -5,7 +5,7 @@
 #include "FunctionCallerGenerator.h"
 
 std::string getNameForStructMember(int index) {
-    return "a" + std::to_string(index);
+    return "m" + std::to_string(index);
 }
 
 namespace handsanitizer {

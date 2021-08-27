@@ -77,7 +77,7 @@ def essence():
 # # lists function signatures
 def essence_list_signatures(spec_file: Path):
     with spec_file.open("r") as j:
-        contents = json.loads(j)
+        contents = json.load(j)
         funcs = contents['functions']
 
         funcs.sort(key=lambda content: content['purity'])
@@ -119,7 +119,7 @@ def essence_build_for_purity_level(bc_file: Path, output: str, generate_input_te
     essence_generate_spec(bc_file, output)
     spec_path = get_filepath_in_output_dir(output, bc_file, '.spec.json')
     with spec_path.open("r") as j:
-        contents = json.loads(j)
+        contents = json.load(j)
         funcs = contents['functions']
         funcs = [func for func in funcs if func['purity'] == purity_level]
         print("----------------- building " + purity_level  + " functions --------------------")

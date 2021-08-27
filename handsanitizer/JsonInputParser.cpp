@@ -85,8 +85,6 @@ namespace handsanitizer {
     }
 
     std::string JsonInputParser::getParserRetrievalForStructs(const JsonParsingCandidate &candidate, bool isMalloced) {
-        std::cerr << "should reach this right" << std::endl;
-
         std::stringstream output;
         //TODO FIX structs
         // first do non array members since these might need to be recursively build up first
@@ -105,7 +103,6 @@ namespace handsanitizer {
                         .type = member.getType(),
                         .isForGlobalVariable = false
                 };
-                std::cerr << "recursing for member" << std::endl;
                 output << getParserRetrievalForNamedType(memberCandidate);
                 parsingCandidatesForMembers.push_back(memberCandidate);
             }
@@ -411,7 +408,6 @@ namespace handsanitizer {
         for(auto& udt : declarationManager->userDefinedTypes){
             auto funcName = declarationManager->getUniqueTmpCPPVariableNameFor("parse" + udt->getCTypeName() + "Struct");
             structParsingHelperFunctions.emplace_back(udt, funcName);
-            std::cerr << "just declared func: " << funcName << std::endl;
             output << udt->getCTypeName() << "* " << funcName << "(const nlohmann::json& " << declarationManager->getUniqueTmpCPPVariableNameFor() << ");" << std::endl;
         }
 

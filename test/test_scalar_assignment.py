@@ -22,15 +22,13 @@ output_dir = "output"
 
 
 
-def setup_module(module):
-    subprocess.run(["clang", "-c", "-emit-llvm", "-fno-discard-value-names", "*.c"], shell=True)
-    subprocess.run(["clang", "-c", "-emit-llvm", "read_none_write_only_reads_memory_test.c", "-O1"])
-
-
 def call_handsanitizer(function_to_test):
     subprocess.run(["clang", function_to_test + ".c", "-c", "-emit-llvm", "-fno-discard-value-names"])
+
     bc_file = function_to_test + ".bc"
-    build_functions_for(bc_file, output_dir, True, function_to_test)
+    x = Path(os.getcwd()) / bc_file
+
+    build_functions_for(x, output_dir, True, function_to_test)
 
     target = os.path.join(output_dir, function_to_test)
 
@@ -55,12 +53,12 @@ def test_structures():
 
     output_json = json.loads(program_output)
     print(json.dumps(output_json, indent=4))
-    assert output_json["globals"]["a"]["a0"][0] == 1
-    assert output_json["globals"]["a"]["a0"][1] == 2
-    assert output_json["globals"]["a"]["a0"][2] == 3
-    assert output_json["globals"]["a"]["a1"] == 4
-    assert output_json["globals"]["a"]["a2"]["a0"] == 5
-    assert output_json["globals"]["a"]["a2"]["a1"]["a0"] == 2
+    assert output_json["globals"]["a"]["m0"][0] == 1
+    assert output_json["globals"]["a"]["m0"][1] == 2
+    assert output_json["globals"]["a"]["m0"][2] == 3
+    assert output_json["globals"]["a"]["m1"] == 4
+    assert output_json["globals"]["a"]["m2"]["m0"] == 5
+    assert output_json["globals"]["a"]["m2"]["m1"]["m0"] == 2
     # assert output_json["output"] == 23909216 # should find something better for this, but make sure its a pointer due to sret
 
 
@@ -69,8 +67,8 @@ def test_direct_return_of_structures():
 
     output_json = json.loads(program_output)
     print(json.dumps(output_json, indent=4))
-    assert output_json["output"]["a0"] == 8589934593
-    assert output_json["output"]["a1"] == 97
+    assert output_json["output"]["m0"] == 8589934593
+    assert output_json["output"]["m1"] == 97
 
 
 
@@ -151,7 +149,7 @@ def test_pointer_in_struct():
 
 def test_essence_strips_out_unused_globals():
     subprocess.run(["clang", "stripped_function_test.c", "-c", "-emit-llvm", "-fno-discard-value-names"])
-    test_file = "stripped_function_test.bc"
+    test_file = Path(os.getcwd()) / "stripped_function_test.bc"
     build_functions_for(test_file, output_dir, True, "stripped_function")
     target_json_path = os.path.join(output_dir, 'stripped_function.json')
     print(target_json_path)
@@ -170,7 +168,7 @@ def test_essence_strips_out_unused_globals():
 
 
 def test_build_read_none_only_builds_read_none_functions():
-    test_file = "read_none_write_only_reads_memory_test.bc"
+    test_file = Path(os.getcwd()) / "read_none_write_only_reads_memory_test.bc"
     essence_build_read_none(test_file, "output/read_none", False)
     assert os.path.isfile("output/read_none/read_none.cpp") == True
     assert os.path.isfile("output/read_none/write_only.cpp") == False
@@ -178,7 +176,7 @@ def test_build_read_none_only_builds_read_none_functions():
 
 
 def test_build_read_none_only_builds_write_only_functions():
-    test_file = "read_none_write_only_reads_memory_test.bc"
+    test_file = Path(os.getcwd()) / "read_none_write_only_reads_memory_test.bc"
     essence_build_write_only(test_file, "output/write_only", False)
     assert os.path.isfile("output/write_only/read_none.cpp") == False
     assert os.path.isfile("output/write_only/write_only.cpp") == True
