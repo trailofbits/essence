@@ -152,7 +152,7 @@ def test_essence_strips_out_unused_globals():
     test_file = Path(os.getcwd()) / "stripped_function_test.bc"
     build_functions_for(test_file, output_dir, True, "stripped_function")
     target_json_path = os.path.join(output_dir, 'stripped_function.json')
-    print(target_json_path)
+
     with open(target_json_path, 'r') as j:
         text = j.read()
         global_used_present = False
