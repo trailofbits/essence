@@ -1,9 +1,16 @@
 {
   "globals": {
-    "int_pointer_global_val_pre_call": [1],
-    "int_pointer_global_val_post_call": 255
-  },
-  "arguments": {
+    "int_pointer_global_val_post_call": {
+      "meta_data": {
+        "type": "int32_t"
+      },
+      "value": 255
+    },
+    "int_pointer_global_val_pre_call": {
+      "meta_data": {
+        "type": "int32_t*"
+      },
+      "value": [1]
+    }
   }
 }
-

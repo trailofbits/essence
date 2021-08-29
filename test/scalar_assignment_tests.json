@@ -1,19 +1,78 @@
 {
-  "globals": {
-    "a": 80,
-    "b": 81,
-    "c": 82,
-    "d": 83,
-    "e": 84.1,
-    "aa": 85.2
-  },
   "arguments": {
-    "f": 91,
-    "g": 92,
-    "h": 93,
-    "i": 94,
-    "j": 5.2,
-    "k": 6.2
+    "f": {
+      "meta_data": {
+        "type": "char"
+      },
+      "value": 91
+    },
+    "g": {
+      "meta_data": {
+        "type": "int16_t"
+      },
+      "value": 92
+    },
+    "h": {
+      "meta_data": {
+        "type": "int32_t"
+      },
+      "value": 93
+    },
+    "i": {
+      "meta_data": {
+        "type": "int64_t"
+      },
+      "value": 94
+    },
+    "j": {
+      "meta_data": {
+        "type": "float"
+      },
+      "value": 5.2
+    },
+    "k": {
+      "meta_data": {
+        "type": "double"
+      },
+      "value": 6.2
+    }
+  },
+  "globals": {
+    "a": {
+      "meta_data": {
+        "type": "char"
+      },
+      "value": 80
+    },
+    "aa": {
+      "meta_data": {
+        "type": "double"
+      },
+      "value": 85.2
+    },
+    "b": {
+      "meta_data": {
+        "type": "int16_t"
+      },
+      "value": 81
+    },
+    "c": {
+      "meta_data": {
+        "type": "int32_t"
+      },
+      "value": 82
+    },
+    "d": {
+      "meta_data": {
+        "type": "int64_t"
+      },
+      "value": 83
+    },
+    "e": {
+      "meta_data": {
+        "type": "float"
+      },
+      "value": 84.1
+    }
   }
 }
-

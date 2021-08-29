@@ -1,9 +1,18 @@
 {
-  "globals": {
-    "direct_char_value_number": 255
-  },
   "arguments": {
-    "boxed_char": 80
+    "boxed_char": {
+      "meta_data": {
+        "type": "char*"
+      },
+      "value": 80
+    }
+  },
+  "globals": {
+    "direct_char_value_number": {
+      "meta_data": {
+        "type": "char"
+      },
+      "value": 255
+    }
   }
 }
-

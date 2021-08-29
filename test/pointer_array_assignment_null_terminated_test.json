@@ -1,14 +1,48 @@
 {
-  "globals": {
-    "second_char_of_array": 255,
-    "third_char_of_array": 255,
-    "fifth_char_of_array": 255,
-    "sixth_char_of_array": 255,
-    "seventh_char_of_array": 255,
-    "eight_char_of_array": 255
-  },
   "arguments": {
-    "array_null_termed": ["ab", "cd", null, "e", 102, null]
+    "array_null_termed": {
+      "meta_data": {
+        "type": "char*"
+      },
+      "value": ["ab", "cd", null, "e", 102, null]
+    }
+  },
+  "globals": {
+    "eight_char_of_array": {
+      "meta_data": {
+        "type": "char"
+      },
+      "value": 255
+    },
+    "fifth_char_of_array": {
+      "meta_data": {
+        "type": "char"
+      },
+      "value": 255
+    },
+    "second_char_of_array": {
+      "meta_data": {
+        "type": "char"
+      },
+      "value": 255
+    },
+    "seventh_char_of_array": {
+      "meta_data": {
+        "type": "char"
+      },
+      "value": 255
+    },
+    "sixth_char_of_array": {
+      "meta_data": {
+        "type": "char"
+      },
+      "value": 255
+    },
+    "third_char_of_array": {
+      "meta_data": {
+        "type": "char"
+      },
+      "value": 255
+    }
   }
 }
-

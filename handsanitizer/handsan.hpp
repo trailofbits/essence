@@ -32,6 +32,7 @@ namespace handsanitizer {
 
         // scalar values
         [[nodiscard]] bool isVoidTy() const { return type == TYPE_NAMES::VOID;} ;
+        [[nodiscard]] bool isScalarTy() const { return isIntegerTy() || isFloatTy() || isDoubleTy();};
         [[nodiscard]] bool isIntegerTy() const { return type == TYPE_NAMES::INTEGER;};
         [[nodiscard]] bool isIntegerTy(int size) const { return type == TYPE_NAMES::INTEGER && integerSize == size;};
         [[nodiscard]] unsigned int getBitWidth() const { return integerSize;};

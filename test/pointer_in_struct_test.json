@@ -1,15 +1,44 @@
 {
-  "globals": {
-  },
   "arguments": {
     "b": {
-      "m0": 1,
-      "m1": [2,3,4],
-      "m2": {
-        "m0": 5
+      "meta_data": {
+        "struct_name": "B",
+        "type": "struct"
       },
-      "m3": 80
+      "value": {
+        "m0": {
+          "meta_data": {
+            "type": "int32_t"
+          },
+          "value": 1
+        },
+        "m1": {
+          "meta_data": {
+            "type": "int32_t*"
+          },
+          "value": [2,3,4]
+        },
+        "m2": {
+          "meta_data": {
+            "struct_name": "A",
+            "type": "struct*"
+          },
+          "value": {
+            "m0": {
+              "meta_data": {
+                "type": "int32_t"
+              },
+              "value": 5
+            }
+          }
+        },
+        "m3": {
+          "meta_data": {
+            "type": "char*"
+          },
+          "value": 80
+        }
+      }
     }
   }
 }
-

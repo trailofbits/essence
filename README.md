@@ -99,10 +99,14 @@ For pointers we do the following:
 
 Example 1: Setting the underlying value
 ```
-void f(int* x);
-int x = parser.get<int>("--x"); // set the underlying value
-f(&x);
-```
+
+
+### Output
+After the function has been called, we return the output of the function together with all global variables as a json object on std out. 
+
+
+
+
 
 Example 2: Multiple levels of indirection exist
 ```
@@ -135,5 +139,10 @@ int* y = x2;
 f(x1, y);
 ```
 
+
+# FAQ
+### What llvm version should I have?
+`handsanitizer` uses llvm-11, meaning that currently we cannot _parse_ bitcode modules compiled with tooling from llvm-12 and beyond.
+However, as `handsanitzer` only uses llvm to generate cpp it is possible to use llvm-12+ (or llvm-10 and lower) while creating new binaries. The actual version is dependent on your system installation.
 
 
