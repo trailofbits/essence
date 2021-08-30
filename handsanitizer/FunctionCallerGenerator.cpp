@@ -122,7 +122,7 @@ namespace handsanitizer {
         return s.str();
     }
 
-    nlohmann::json getJsonInputTemplateTextForJsonRvalueAsJson(Type &arg, std::vector<std::pair<Type *, std::string>> typePath, int pointerIndirections = 0) {
+    nlohmann::json FunctionCallerGenerator::getJsonInputTemplateTextForJsonRvalueAsJson(Type &arg, std::vector<std::pair<Type *, std::string>> typePath, int pointerIndirections) {
         nlohmann::json json;
         if (arg.isPointerTy())
             return getJsonInputTemplateTextForJsonRvalueAsJson(*arg.getPointerElementType(), typePath, pointerIndirections + 1);
@@ -169,77 +169,15 @@ namespace handsanitizer {
 
                     json["value"][mem.getName()] = {{"value",       nullptr},
                                                     {"cycles_with", pathToFirstOccurrence.str()}};
-//                    output << "\"" << mem.getName() << "\": \"cycles_with_" << pathToFirstOccurrence.str() << "\"";
                 } else {
                     auto memberTypePath(typePath);
                     memberTypePath.emplace_back(mem.getType(), mem.getName());
                     json["value"][mem.getName()] = getJsonInputTemplateTextForJsonRvalueAsJson(*mem.getType(), memberTypePath);
-//                    output << "\"" << mem.getName() << "\"" << ": " << getJsonInputTemplateTextForJsonRvalue(*mem.getType(), memberTypePath);
                 }
-
-
             }
-//            output << "}";
         }
 
-//        json["meta_data"] = {{ "type", arg.getCTypeName() }};
         return json;
-    }
-
-
-    /*
-     * seen types is an ordered list
-     * with the idea that if the current type is inside the list, we print the entire path
-     */
-    std::string getJsonInputTemplateTextForJsonRvalue(Type &arg, std::vector<std::pair<Type *, std::string>> typePath) {
-        std::stringstream output;
-        if (arg.isPointerTy())
-            output << getJsonInputTemplateTextForJsonRvalue(*arg.getPointerElementType(), typePath); // we abstract pointers away
-
-        // if scalar
-        if (!arg.isArrayTy() && !arg.isStructTy() && !arg.isPointerTy()) {
-            output << "\"" << arg.getCTypeName() << "\"";
-        }
-
-        if (arg.isArrayTy()) {
-            output << "[";
-            for (int i = 0; i < arg.getArrayNumElements(); i++) {
-                output << getJsonInputTemplateTextForJsonRvalue(*arg.getArrayElementType(), typePath);
-                if (i != arg.getArrayNumElements() - 1) {
-                    output << ",";
-                }
-            }
-            output << "]";
-        }
-
-        if (arg.isStructTy()) {
-            output << "{";
-
-
-            for (auto &mem : arg.getNamedMembers()) {
-                std::vector<std::pair<Type *, std::string>>::iterator pathToPreviousUnrollingOfType;
-                pathToPreviousUnrollingOfType = std::find_if(typePath.begin(), typePath.end(),
-                                                             [mem](const std::pair<Type *, std::string> &pair) { return mem.type == pair.first; });
-                if (pathToPreviousUnrollingOfType != typePath.end()) {
-                    // member type is already found
-                    std::stringstream pathToFirstOccurrence;
-                    for (auto &path : typePath)
-                        pathToFirstOccurrence << "[\'" << path.second << "\']";
-
-                    output << "\"" << mem.getName() << "\": \"cycles_with_" << pathToFirstOccurrence.str() << "\"";
-                } else {
-                    auto memberTypePath(typePath);
-                    memberTypePath.emplace_back(mem.getType(), mem.getName());
-                    output << "\"" << mem.getName() << "\"" << ": " << getJsonInputTemplateTextForJsonRvalue(*mem.getType(), memberTypePath);
-                }
-
-                if (mem.getName() != arg.getNamedMembers().back().getName()) { // names should be unique
-                    output << "," << std::endl;
-                }
-            }
-            output << "}";
-        }
-        return output.str();
     }
 
     void FunctionCallerGenerator::generate_json_input_template_file(const std::string &dest_file_path) {
@@ -256,23 +194,6 @@ namespace handsanitizer {
             json["globals"][global.getName()] = getJsonInputTemplateTextForJsonRvalueAsJson(*global.getType(), typePath);
         }
 
-
-
-
-//        output << "{" << std::endl;
-//        output << "\"globals\": {" << std::endl;
-//        for (auto &arg: this->declarationManager->globals) {
-//            std::vector<std::pair<Type*, std::string >> typePath;
-////            typePath.emplace_back(arg.getType(), arg.getName());
-////
-//            output << "\"" << arg.getName() << "\"" << ": " << getJsonInputTemplateTextForJsonRvalue(*arg.getType(), typePath);
-//            if (arg.getName() != this->declarationManager->globals.back().getName()) {
-//                output << "," << std::endl;
-//            }
-//        }
-
-//        output << "}," << std::endl;
-
         for (auto &arg: function->arguments) {
             nlohmann::json jsonForArg;
             std::vector<std::pair<Type *, std::string >> typePath;
@@ -280,21 +201,6 @@ namespace handsanitizer {
             json["arguments"][arg.getName()] = getJsonInputTemplateTextForJsonRvalueAsJson(*arg.getType(), typePath);
 
         }
-
-
-//        output << "\"arguments\": {" << std::endl;
-//        for (auto &arg: function->arguments) {
-//            std::vector<std::pair<Type*, std::string >> typePath;
-//            typePath.emplace_back(arg.getType(), arg.getName());
-//            output << "\"" << arg.getName() << "\"" << ": " << getJsonInputTemplateTextForJsonRvalue(*arg.getType(), typePath);
-//            if (arg.getName() != function->arguments.back().getName()) {
-//                output << "," << std::endl;
-//            }
-//        }
-//        output << "}" << std::endl;
-//        output << "}" << std::endl;
-
-//        auto j = nlohmann::json::parse(json.str());
         of << json.dump(4) << std::endl;
     }
 

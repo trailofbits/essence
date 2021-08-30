@@ -2,6 +2,7 @@
 
 #include <string>
 #include <utility>
+#include <nlohmann/json.hpp>
 #include "handsan.hpp"
 #include "JsonInputParser.h"
 #include "JsonOutputGenerator.h"
@@ -41,6 +42,7 @@ namespace handsanitizer{
 
         static std::string getUntypedArgumentNames(Function &f);
 
+        nlohmann::json getJsonInputTemplateTextForJsonRvalueAsJson(Type &arg, std::vector<std::pair<Type *, std::string>> typePath, int pointerIndirections = 0);
         std::string getGlobalDeclarationsText();
         std::string getFreeVectorFreeText() ;
         static std::string getMainText();
