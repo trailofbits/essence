@@ -122,23 +122,53 @@ namespace handsanitizer {
         return s.str();
     }
 
+
+
+    void FunctionCallerGenerator::addMetaDataForPointerToJson(nlohmann::json &json, Type &arg) {
+        if(!arg.isPointerTy())
+            throw std::invalid_argument("needs to be a pointer");
+
+        addMetaDataForTypeToJson(json, *arg.getPointerBaseElementType(), arg.getPointerDepth());
+    }
+
+    void FunctionCallerGenerator::addMetaDataForTypeToJson(nlohmann::json &json, Type &arg) {
+        addMetaDataForTypeToJson(json, arg, 0);
+    }
+
+    void FunctionCallerGenerator::addMetaDataForTypeToJson(nlohmann::json &json, Type &arg, int pointerIndirections) {
+        json["meta_data"]["pointer_depth"] = std::to_string(pointerIndirections);
+        if(arg.isPointerTy()){
+            addMetaDataForPointerToJson(json, arg);
+            return;
+        }
+        if(arg.isScalarTy())
+            json["meta_data"]["type"] = arg.getCTypeName();
+        else
+            json["meta_data"]["type"] = arg.getTypeName();
+
+        if (arg.isArrayTy()) {
+            json["meta_data"]["element_type"] = arg.getArrayElementType()->getCTypeName();
+            json["meta_data"]["size"] = arg.getArrayNumElements();
+        }
+
+        if (arg.isStructTy()) {
+            json["meta_data"]["name"] = arg.getCTypeName();
+            json["meta_data"]["is_self_referential"] = arg.isCyclicWithItself;
+        }
+    }
+
+
     nlohmann::json FunctionCallerGenerator::getJsonInputTemplateTextForJsonRvalueAsJson(Type &arg, std::vector<std::pair<Type *, std::string>> typePath, int pointerIndirections) {
-        nlohmann::json json;
         if (arg.isPointerTy())
             return getJsonInputTemplateTextForJsonRvalueAsJson(*arg.getPointerElementType(), typePath, pointerIndirections + 1);
 
+        nlohmann::json json;
+        addMetaDataForTypeToJson(json, arg, pointerIndirections);
+
         if (arg.isScalarTy()) {
-            if (pointerIndirections > 0)
-                json["meta_data"]["type"] = arg.getCTypeName() + std::string(pointerIndirections, '*');
-            else
-                json["meta_data"]["type"] = arg.getCTypeName();
             json["value"] = nullptr;
         }
         if (arg.isArrayTy()) {
-            if (pointerIndirections > 0)
-                json["meta_data"]["type"] = arg.getTypeName() + std::string(pointerIndirections, '*');
-            else
-                json["meta_data"]["type"] = arg.getTypeName();
             json["meta_data"]["element_type"] = arg.getArrayElementType()->getCTypeName();
             json["meta_data"]["size"] = arg.getArrayNumElements();
 
@@ -150,25 +180,13 @@ namespace handsanitizer {
         }
 
         if (arg.isStructTy()) {
-            if (pointerIndirections > 0)
-                json["meta_data"]["type"] = arg.getTypeName() + std::string(pointerIndirections, '*');
-            else
-                json["meta_data"]["type"] = arg.getTypeName();
-
-            json["meta_data"]["struct_name"] = arg.getCTypeName();
-
             for (auto &mem : arg.getNamedMembers()) {
                 std::vector<std::pair<Type *, std::string>>::iterator pathToPreviousUnrollingOfType;
                 pathToPreviousUnrollingOfType = std::find_if(typePath.begin(), typePath.end(),
                                                              [mem](const std::pair<Type *, std::string> &pair) { return mem.type == pair.first; });
                 if (pathToPreviousUnrollingOfType != typePath.end()) {
-                    // member type is already found
-                    std::stringstream pathToFirstOccurrence;
-                    for (auto &path : typePath)
-                        pathToFirstOccurrence << "[\'" << path.second << "\']";
-
-                    json["value"][mem.getName()] = {{"value",       nullptr},
-                                                    {"cycles_with", pathToFirstOccurrence.str()}};
+                    addMetaDataForTypeToJson(json["value"][mem.getName()], *mem.getType());
+                    json["value"][mem.getName()]["value"] = nullptr;
                 } else {
                     auto memberTypePath(typePath);
                     memberTypePath.emplace_back(mem.getType(), mem.getName());

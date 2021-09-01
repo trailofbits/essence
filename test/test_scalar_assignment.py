@@ -188,5 +188,12 @@ def test_cyclic_with_single_struct():
     program_output = call_handsanitizer("cyclic_with_single_struct")
 
     output_json = json.loads(program_output)
+
+
     print(json.dumps(output_json, indent=4))
     assert output_json["output"] == 1
+    with Path(output, "cyclic_with_single_struct.json").open("r") as template_json:
+        template = json.load(template_json)
+        assert template["arguments"]["x"]["meta_data"]["is_self_referential"] == True
+
+

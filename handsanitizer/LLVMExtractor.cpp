@@ -37,8 +37,10 @@ namespace handsanitizer {
     void ModuleFromLLVMModuleFactory::defineStructIfNeeded(const std::shared_ptr<DeclarationManager> &declarationManager,
                                                            llvm::Type *type,
                                                            std::vector<llvm::Type *> &previouslySeenTypes) {
-        if (type->isPointerTy())
+        if (type->isPointerTy()){
             defineStructIfNeeded(declarationManager, type->getPointerElementType(), previouslySeenTypes);
+            return;
+        }
 
         std::string type_str;
         llvm::raw_string_ostream rso(type_str);
@@ -50,9 +52,11 @@ namespace handsanitizer {
         if (this->hasStructDefined(type)) {
             auto r = std::find_if(definedLlvmTypes.begin(), definedLlvmTypes.end(),
                                   [&type](std::pair<Type *, llvm::Type *> defined_type) { return type == defined_type.second; });
-            if (r != definedLlvmTypes.end()) // llvm type was already declared and hence must be cyclic
+            if (r != definedLlvmTypes.end()){ // llvm type was already declared and hence must be cyclic
                 r->first->isCyclicWithItself = true;
-            return;
+                return;
+            }
+            throw std::invalid_argument("could not find type which was already defined");
         }
 
         bool isUnion = false;
@@ -211,17 +215,14 @@ namespace handsanitizer {
                             ConvertLLVMTypeToHandsanitizerType(declarationManager, type->getPointerElementType(), previouslySeenTypes));
 
         else if (type->isStructTy()) {
-            if (!this->hasStructDefined(type))
-                this->defineStructIfNeeded(declarationManager, type, previouslySeenTypes);
+            this->defineStructIfNeeded(declarationManager, type, previouslySeenTypes); // this is a required call to make sure that self referential types are discovered
             return this->getDefinedStructByLLVMType(type);
         } else if (type->isFunctionTy()) {
             throw std::invalid_argument("Function type found, we do not support this");
         } else {
-
             std::string type_str;
             llvm::raw_string_ostream rso(type_str);
             type->print(rso);
-
 
             throw std::invalid_argument("Could not convert llvm type" + rso.str());
         }

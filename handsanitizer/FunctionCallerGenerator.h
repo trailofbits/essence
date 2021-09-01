@@ -46,5 +46,9 @@ namespace handsanitizer{
         std::string getGlobalDeclarationsText();
         std::string getFreeVectorFreeText() ;
         static std::string getMainText();
+
+        void addMetaDataForPointerToJson(nlohmann::json& json, Type& arg);
+        void addMetaDataForTypeToJson(nlohmann::json& json, Type& arg);
+        void addMetaDataForTypeToJson(nlohmann::json& json, Type& arg, int pointerIndirections);
     };
 }

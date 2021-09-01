@@ -2,25 +2,40 @@
   "arguments": {
     "x": {
       "meta_data": {
-        "struct_name": "X",
-        "type": "struct*"
+        "is_self_referential": true,
+        "name": "X",
+        "pointer_depth": "1",
+        "type": "struct"
       },
       "value": {
         "m0": {
           "meta_data": {
-            "struct_name": "X",
-            "type": "struct*"
+            "is_self_referential": true,
+            "name": "X",
+            "pointer_depth": "1",
+            "type": "struct"
           },
           "value": {
             "m0": {
-              "cycles_with": "['x']['m0']",
+              "meta_data": {
+                "is_self_referential": true,
+                "name": "X",
+                "pointer_depth": "0",
+                "type": "struct"
+              },
               "value": {
                 "m0": {
-                  "cycles_with": "['x']['m0']",
+                  "meta_data": {
+                    "is_self_referential": true,
+                    "name": "X",
+                    "pointer_depth": "0",
+                    "type": "struct"
+                  },
                   "value": null
                 },
                 "m1": {
                   "meta_data": {
+                    "pointer_depth": "0",
                     "type": "int32_t"
                   },
                   "value": 1
@@ -29,6 +44,7 @@
             },
             "m1": {
               "meta_data": {
+                "pointer_depth": "0",
                 "type": "int32_t"
               },
               "value": 2
@@ -37,6 +53,7 @@
         },
         "m1": {
           "meta_data": {
+            "pointer_depth": "0",
             "type": "int32_t"
           },
           "value": 3
