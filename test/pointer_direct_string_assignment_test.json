@@ -1,10 +1,24 @@
 {
-  "globals": {
-    "second_char_value_string": 255,
-    "third_char_of_string": 255
-  },
   "arguments": {
-    "direct_string": "ab"
+    "direct_string": {
+      "meta_data": {
+        "type": "char*"
+      },
+      "value": "ab"
+    }
+  },
+  "globals": {
+    "second_char_value_string": {
+      "meta_data": {
+        "type": "char"
+      },
+      "value": 255
+    },
+    "third_char_of_string": {
+      "meta_data": {
+        "type": "char"
+      },
+      "value": 255
+    }
   }
 }
-

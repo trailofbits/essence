@@ -1,9 +1,18 @@
 {
-  "globals": {
-    "int_pointer_val_arg_second_value_in_array": 255
-  },
   "arguments": {
-    "array_of_ints": [2,1]
+    "array_of_ints": {
+      "meta_data": {
+        "type": "int32_t*"
+      },
+      "value": [2,1]
+    }
+  },
+  "globals": {
+    "int_pointer_val_arg_second_value_in_array": {
+      "meta_data": {
+        "type": "int32_t"
+      },
+      "value": 255
+    }
   }
 }
-

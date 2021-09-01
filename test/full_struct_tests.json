@@ -1,35 +1,144 @@
 {
-  "globals": {
-    "a": {
-      "m0": [
-        1,
-        2,
-        3
-      ],
-      "m1": 4,
-      "m2": {
-        "m0": 5,
+  "arguments": {
+    "x": {
+      "meta_data": {
+        "struct_name": "X",
+        "type": "struct"
+      },
+      "value": {
+        "m0": {
+          "meta_data": {
+            "element_type": "int32_t",
+            "size": 3,
+            "type": "array"
+          },
+          "value": [
+            {
+              "meta_data": {
+                "type": "int32_t"
+              },
+              "value": 7
+            },
+            {
+              "meta_data": {
+                "type": "int32_t"
+              },
+              "value": 8
+            },
+            {
+              "meta_data": {
+                "type": "int32_t"
+              },
+              "value": 9
+            }
+          ]
+        },
         "m1": {
-          "m0": 6
+          "meta_data": {
+            "type": "int32_t"
+          },
+          "value": 10
+        },
+        "m2": {
+          "meta_data": {
+            "struct_name": "Y",
+            "type": "struct"
+          },
+          "value": {
+            "m0": {
+              "meta_data": {
+                "type": "int32_t"
+              },
+              "value": 11
+            },
+            "m1": {
+              "meta_data": {
+                "struct_name": "Z",
+                "type": "struct"
+              },
+              "value": {
+                "m0": {
+                  "meta_data": {
+                    "type": "int32_t"
+                  },
+                  "value": 12
+                }
+              }
+            }
+          }
         }
       }
     }
   },
-  "arguments": {
-    "x": {
-      "m0": [
-        7,
-        8,
-        9
-      ],
-      "m1": 10,
-      "m2": {
-        "m0": 11,
+  "globals": {
+    "a": {
+      "meta_data": {
+        "struct_name": "X",
+        "type": "struct"
+      },
+      "value": {
+        "m0": {
+          "meta_data": {
+            "element_type": "int32_t",
+            "size": 3,
+            "type": "array"
+          },
+          "value": [
+            {
+              "meta_data": {
+                "type": "int32_t"
+              },
+              "value": 1
+            },
+            {
+              "meta_data": {
+                "type": "int32_t"
+              },
+              "value": 2
+            },
+            {
+              "meta_data": {
+                "type": "int32_t"
+              },
+              "value": 3
+            }
+          ]
+        },
         "m1": {
-          "m0": 12
+          "meta_data": {
+            "type": "int32_t"
+          },
+          "value": 4
+        },
+        "m2": {
+          "meta_data": {
+            "struct_name": "Y",
+            "type": "struct"
+          },
+          "value": {
+            "m0": {
+              "meta_data": {
+                "type": "int32_t"
+              },
+              "value": 5
+            },
+            "m1": {
+              "meta_data": {
+                "struct_name": "Z",
+                "type": "struct"
+              },
+              "value": {
+                "m0": {
+                  "meta_data": {
+                    "type": "int32_t"
+                  },
+                  "value": 6
+                }
+              }
+            }
+          }
         }
       }
     }
   }
 }
-

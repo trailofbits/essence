@@ -62,9 +62,9 @@ namespace handsanitizer {
 
         auto parsedArrayElTypeLvalue = declarationManager->getUniqueTmpCPPVariableNameFor();
         JsonParsingCandidate arrayElTypeCandidate = {.lvalueName = parsedArrayElTypeLvalue,
-                .jsonRoot = candidate.jsonRoot + "[" + iterator_name + "]",
-                .type = candidate.type->getArrayElementType(),
-                .isForGlobalVariable = candidate.isForGlobalVariable,
+                                                     .jsonRoot = candidate.jsonRoot + "[\"value\"][" + iterator_name + "]",
+                                                     .type = candidate.type->getArrayElementType(),
+                                                     .isForGlobalVariable = candidate.isForGlobalVariable,
         };
         output << getParserRetrievalForNamedType(arrayElTypeCandidate); // we declare a new local variable so don't pass in the global flag
         output << candidate.lvalueName << "[" << iterator_name << "] = " << parsedArrayElTypeLvalue << ";" << std::endl;
@@ -79,7 +79,7 @@ namespace handsanitizer {
             output << candidate.type->getCTypeName() << " ";
 
         output << candidate.lvalueName;
-        output << " = " << candidate.jsonRoot << ".get<" << candidate.type->getCTypeName() << ">();";
+        output << " = " << candidate.jsonRoot << "[\"value\"].get<" << candidate.type->getCTypeName() << ">();";
         output << std::endl;
         return output.str();
     }
@@ -99,7 +99,7 @@ namespace handsanitizer {
             if (!member.getType()->isArrayTy()) {
                 JsonParsingCandidate memberCandidate{
                         .lvalueName = declarationManager->getUniqueTmpCPPVariableNameFor(member.getName()),
-                        .jsonRoot = candidate.jsonRoot + "[\"" + member.getName() + "\"]",
+                        .jsonRoot = candidate.jsonRoot + "[\"value\"][\"" + member.getName() + "\"]",
                         .type = member.getType(),
                         .isForGlobalVariable = false
                 };
@@ -131,7 +131,7 @@ namespace handsanitizer {
 
                 JsonParsingCandidate arrayMemberCandidate{
                         .lvalueName = declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalueName + member.getName()),
-                        .jsonRoot = candidate.jsonRoot + "[\"" + member.getName() + "\"]" + "[" + iterator_name + "]",
+                        .jsonRoot = candidate.jsonRoot + "[\"value\"][\"" + member.getName() + "\"]" + "[\"value\"][" + iterator_name + "]",
                         .type = arrType,
                         .isForGlobalVariable = false
                 };
@@ -193,7 +193,7 @@ namespace handsanitizer {
         std::stringstream output;
         handsanitizer::Type *pointeeType = candidate.type->getPointerElementType();
         std::string elTypeName = pointeeType->getCTypeName();
-        std::string jsonValue = candidate.jsonRoot;
+        std::string jsonValue = candidate.jsonRoot + "[\"value\"]";
 
         if (!candidate.isForGlobalVariable)
             output << elTypeName << "* " << candidate.lvalueName << ";" << std::endl;
@@ -287,7 +287,7 @@ namespace handsanitizer {
 
         handsanitizer::Type *pointeeType = candidate.type->getPointerElementType();
         std::string elTypeName = pointeeType->getCTypeName();
-        std::string jsonValue = candidate.jsonRoot;
+        std::string jsonValue = candidate.jsonRoot + "[\"value\"]";
 
         std::string argument_name = candidate.lvalueName;
         if (!candidate.isForGlobalVariable)
@@ -301,12 +301,13 @@ namespace handsanitizer {
 
 
             auto funcName = helperFunc->second;
+            // no ["value"] here as this is already contained in the helper function
             output << candidate.lvalueName << " = " << funcName << "(" << candidate.jsonRoot << ");" << std::endl;
         } else {
             // if it's an array
             output << "if(" << jsonValue << ".is_array()) { " << std::endl;
             std::string malloced_value = declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalueName + "_malloced");
-            std::string arrSize = candidate.jsonRoot + ".size()";
+            std::string arrSize = candidate.jsonRoot + "[\"value\"].size()";
 
             output << elTypeName << "* " << malloced_value << " = (" << elTypeName << "*) malloc(sizeof(" << elTypeName << ") * " << arrSize << ");"
                    << std::endl;
@@ -377,7 +378,7 @@ namespace handsanitizer {
 
 
 
-        output << "if(" << jsonRoot << ".is_null()) { return nullptr; } else {" << std::endl;
+        output << "if(" << jsonRoot << "[\"value\"].is_null()) { return nullptr; } else {" << std::endl;
 
         auto localLvalue = declarationManager->getUniqueTmpCPPVariableNameFor();
 
