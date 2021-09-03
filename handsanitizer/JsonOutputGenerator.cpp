@@ -1,7 +1,7 @@
 #include "JsonOutputGenerator.h"
 
 namespace handsanitizer{
-    std::string JsonOutputGenerator::getJsonOutputForType(const std::string& json_name, const std::vector<std::string>& prefixes, Type *type, bool skipRoot) {
+    std::string JsonOutputGenerator::getJsonOutputForType(const std::string& json_name, const std::vector<std::string>& prefixes, Type *type, bool skipRoot, bool isArrayValue) {
         std::stringstream output;
         if (type->isStructTy()) {
             for (auto &mem : type->getNamedMembers()) {
@@ -9,7 +9,16 @@ namespace handsanitizer{
                 member_prefixes.push_back(mem.getName());
                 output << getJsonOutputForType(json_name, member_prefixes, mem.getType(), skipRoot) << std::endl;
             }
-        } else {
+        }else if(type->isArrayTy()){
+            auto it_name = declarationManager->getUniqueLoopIteratorName();
+            auto array_prefixes = std::vector<std::string>(prefixes);
+            array_prefixes.push_back(it_name);
+            output << "for(int " << it_name << " = 0; " << it_name << " < " << type->getArrayNumElements() << ";" << it_name << "++){" << std::endl;
+            output << getJsonOutputForType(json_name, array_prefixes, type->getArrayElementType(), skipRoot, true);
+            output << "}" << std::endl;
+        }
+
+        else {
             output << json_name;
             if (skipRoot)
                 output << this->declarationManager->joinStrings(prefixes, GENERATE_FORMAT_JSON_ARRAY_ADDRESSING_WITHOUT_ROOT);

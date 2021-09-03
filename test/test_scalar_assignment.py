@@ -190,3 +190,32 @@ def test_cyclic_with_single_struct():
     output_json = json.loads(program_output)
     print(json.dumps(output_json, indent=4))
     assert output_json["output"] == 1
+
+
+
+def test_multi_dimensional_arrays():
+    program_output = call_handsanitizer("multi_dimensional_arrays")
+
+    output_json = json.loads(program_output)
+    print(json.dumps(output_json, indent=4))
+    assert output_json["output"] == 1
+
+
+
+def test_multi_dimensional_arrays_with_pointer_types():
+    program_output = call_handsanitizer("multi_dimensional_arrays_with_pointer_types")
+
+    output_json = json.loads(program_output)
+    print(json.dumps(output_json, indent=4))
+    assert output_json["output"] == 1
+
+
+
+def test_array_output_of_globals():
+    program_output = call_handsanitizer("output_contains_global_array_values_tests")
+
+    output_json = json.loads(program_output)
+    print(json.dumps(output_json, indent=4))
+    assert output_json["globals"]["array_of_ints"][0] == 1
+    assert output_json["globals"]["array_of_ints"][1] == 2
+    assert output_json["globals"]["array_of_ints"][2] == 3

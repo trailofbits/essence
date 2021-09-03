@@ -168,7 +168,7 @@ namespace handsanitizer {
     std::string Function::getTypedArgumentNames() const {
         std::stringstream output;
         for (auto &args : this->arguments) {
-            output << args.getType()->getCTypeName() << " " << args.getName() << ", ";
+            output << args.getNameWithType() << ", ";
         }
         auto retstring = output.str();
         if (!retstring.empty()) {
@@ -309,9 +309,10 @@ namespace handsanitizer {
     }
 
 
-    std::string Type::getCTypeName() {
-        if (this->isPointerTy())
-            return this->getPointerElementType()->getCTypeName() + "*";
+    std::string Type::getCTypeName(std::string identifierName) {
+        if (this->isPointerTy()){
+            return getTypeDeclarationForPointerAndArrays(identifierName);
+        }
 
         else if (this->integerSize == 1)
             return "bool";
@@ -340,8 +341,8 @@ namespace handsanitizer {
         else if (this->isStructTy()) {
             return this->structName;
         } else if (this->isArrayTy())
-            throw std::invalid_argument("Arrays can't have their names expressed like this");
-
+            return getTypeDeclarationForPointerAndArrays(identifierName);
+//            throw std::invalid_argument("Arrays can't have their names expressed like this");
         else {
             throw std::invalid_argument("Type: is not supported");
         }
@@ -369,5 +370,57 @@ namespace handsanitizer {
             return "array";
         else
             return "not_supported";
+    }
+
+    std::string Type::getTypeDeclarationForPointerAndArrays(const std::string& identifier){
+        std::string arrayPostfixes = "";
+        bool arrayExistsInType = false;
+        int innerPointerDepth = 0; // ex: int <outer>**( <inner>* name)[];,
+        int outerPointerDepth = 0; // ex: int <outer>**( <inner>* name)[];,
+
+        Type* pointeeType;
+        if(this->isPointerTy()){
+            outerPointerDepth++;
+            pointeeType = this->getPointerElementType();
+            while(pointeeType->isPointerTy()){
+                outerPointerDepth++;
+                pointeeType = pointeeType->getPointerElementType();
+            }
+        }
+        auto lastType = this;
+        if(this->isPointerTy()) // get the element behind pointers
+            lastType = pointeeType;
+
+        if(lastType->isArrayTy()){
+            // if we have a pointer to an array, all pointers previously discovered are internal
+            innerPointerDepth = outerPointerDepth;
+            outerPointerDepth = 0;
+
+            while(lastType->isArrayTy()){
+                arrayExistsInType = true;
+                arrayPostfixes = arrayPostfixes + "[" + std::to_string(lastType->getArrayNumElements()) + "]";
+                lastType = lastType->getArrayElementType();
+            }
+        }
+
+        while(lastType->isPointerTy()){
+            outerPointerDepth++;
+            lastType = lastType->getPointerElementType();
+        }
+
+
+        std::string mostBaseType = lastType->getCTypeName();
+        if(innerPointerDepth > 0)
+            return mostBaseType + std::string(outerPointerDepth, '*') + " (" + std::string(innerPointerDepth, '*') + identifier + ")" + arrayPostfixes;
+        else
+            return mostBaseType + std::string(outerPointerDepth, '*') + " " + identifier + arrayPostfixes;
+    }
+
+    std::string NamedVariable::getNameWithType() const {
+        //name can be wrapped inside other symbols only if it's a pointer or array
+        if(this->getType()->isPointerTy() || this->getType()->isArrayTy())
+            return this->getType()->getCTypeName(this->getName());
+        else
+            return this->getType()->getCTypeName() + " " + this->getName();
     }
 }

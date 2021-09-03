@@ -124,16 +124,5 @@ for(int i =0; i < x_array_size; i++)
     x_buffer[i] = json_input["--x"][i]; 
 ```
 
-Later on we might include support aliasing, but this feature is currently considered out of scope. An example might be following scenario:
-```
-f(int** x, int *y);
-./handsanitzer --x=3 y=--x
-
-int* x2 = &parser.get<char>("--x");
-int** x1 = &x2;
-int* y = x2;
-f(x1, y);
-```
-
 
 

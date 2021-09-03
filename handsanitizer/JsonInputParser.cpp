@@ -20,10 +20,9 @@ namespace handsanitizer {
 
         for (auto &a : args) {
             JsonParsingCandidate candidate{
-                    .lvalueName = a.getName(),
-                    .jsonRoot = jsonInputVariableName + "[\"" + a.getName() + "\"]",
-                    .type = a.getType(),
-                    .isForGlobalVariable = isForGlobals
+                .lvalue = NamedVariable(a.getName(), a.getType()),
+                .jsonRoot = jsonInputVariableName + "[\"" + a.getName() + "\"]",
+                .isForGlobalVariable = isForGlobals
             };
             s << getParserRetrievalForNamedType(candidate);
         }
@@ -31,44 +30,80 @@ namespace handsanitizer {
     }
 
     std::string JsonInputParser::getParserRetrievalForNamedType(const JsonParsingCandidate &candidate) {
-        // arrays only exists in types unless they are global
-        if (candidate.isForGlobalVariable && candidate.type->isArrayTy()) {
+        // arrays only exists in types, but members might be constructed through a call to this function
+        if (candidate.lvalue.getType()->isArrayTy()) {
+            std::cout << "generating for array: " << candidate.lvalue.getName() << std::endl;
+
             return getParserRetrievalForGlobalArrays(candidate);
         }
             // Pointers recurse until they point to a non pointer
             // for a non-pointer it declares the base type and sets it as an array/scalar
-        else if (candidate.type->isPointerTy()) {
+        else if (candidate.lvalue.getType()->isPointerTy()) {
             return getParserRetrievalForPointers(candidate);
         }
 
             // if type is scalar => output directly
-        else if (candidate.type->isIntegerTy(1) || candidate.type->isIntegerTy(8) || candidate.type->isIntegerTy(16) || candidate.type->isIntegerTy(32) ||
-                 candidate.type->isIntegerTy(64) || candidate.type->isFloatTy() || candidate.type->isDoubleTy()) {
+        else if (candidate.lvalue.getType()->isIntegerTy(1) || candidate.lvalue.getType()->isIntegerTy(8) || candidate.lvalue.getType()->isIntegerTy(16) || candidate.lvalue.getType()->isIntegerTy(32) ||
+                 candidate.lvalue.getType()->isIntegerTy(64) || candidate.lvalue.getType()->isFloatTy() || candidate.lvalue.getType()->isDoubleTy()) {
             return getParserRetrievalForScalars(candidate);
         }
             // if type is struct, recurse with member names added as prefix
-        else if (candidate.type->isStructTy()) {
+        else if (candidate.lvalue.getType()->isStructTy()) {
             return getParserRetrievalForStructs(candidate, false);
         }
-        throw std::invalid_argument("could not generate parser for type");
+        throw std::invalid_argument("could not generate parser for type " + candidate.lvalue.getNameWithType());
     }
 
     std::string JsonInputParser::getParserRetrievalForGlobalArrays(const JsonParsingCandidate &candidate) {
+        /*
+         * if this is an multi dimensional array we need to handle it in one call instead of multiple recursive calls
+         * as we actually need to instantiate only one variable for all arrays together
+         * this is fine as each array contains the same base type anyway
+         */
+
+
         std::stringstream output;
-        int arrSize = candidate.type->getArrayNumElements();
-        std::string iterator_name = this->declarationManager->getUniqueLoopIteratorName(); // we require a name from this function to get proper generation
-        output << "for(int " << iterator_name << " = 0; " << iterator_name << " < " << arrSize << ";" << iterator_name
-               << "++) {" << std::endl;
+
+//        if(candidate.isForGlobalVariable){
+//            output << candidate.lvalue.getNameWithType() << ";" << std::endl;
+//        }
+
+
+        std::vector<std::pair<std::string, int>> iteratorNameAndLength;
+        auto lastType = candidate.lvalue.getType();
+        while(lastType->isArrayTy()){
+            std::string iterator_name = this->declarationManager->getUniqueLoopIteratorName(); // we require a name from this function to get proper generation
+            int arrSize = lastType->getArrayNumElements();
+            iteratorNameAndLength.emplace_back(iterator_name, arrSize);
+            lastType = lastType->getArrayElementType();
+        }
+
+        for(auto& itNameLengthPair: iteratorNameAndLength)
+            output << "for(int " << itNameLengthPair.first << " = 0; " << itNameLengthPair.first << " < " << itNameLengthPair.second << ";" << itNameLengthPair.first << "++) {" << std::endl;
 
         auto parsedArrayElTypeLvalue = declarationManager->getUniqueTmpCPPVariableNameFor();
-        JsonParsingCandidate arrayElTypeCandidate = {.lvalueName = parsedArrayElTypeLvalue,
-                .jsonRoot = candidate.jsonRoot + "[" + iterator_name + "]",
-                .type = candidate.type->getArrayElementType(),
-                .isForGlobalVariable = candidate.isForGlobalVariable,
-        };
+        auto arrElLvalue = NamedVariable(parsedArrayElTypeLvalue, lastType);
+
+        std::stringstream arrayIndexing;
+        for(auto& indexing: iteratorNameAndLength){
+            arrayIndexing << "[" + indexing.first + "]";
+        }
+
+
+        JsonParsingCandidate arrayElTypeCandidate = {
+                .lvalue = arrElLvalue,
+                .jsonRoot = candidate.jsonRoot + arrayIndexing.str(),
+                .isForGlobalVariable = false,
+                };
         output << getParserRetrievalForNamedType(arrayElTypeCandidate); // we declare a new local variable so don't pass in the global flag
-        output << candidate.lvalueName << "[" << iterator_name << "] = " << parsedArrayElTypeLvalue << ";" << std::endl;
-        output << "}" << std::endl;
+
+
+        output << candidate.lvalue.getName() << arrayIndexing.str() << " = " << parsedArrayElTypeLvalue << ";" << std::endl;
+
+
+        for(auto& itNameLengthPair: iteratorNameAndLength)
+            output << "}" << std::endl;
+
         return output.str();
     }
 
@@ -76,10 +111,10 @@ namespace handsanitizer {
     std::string JsonInputParser::getParserRetrievalForScalars(const JsonParsingCandidate &candidate) {
         std::stringstream output;
         if (!candidate.isForGlobalVariable) // only declare types if its not global, otherwise we introduce them as local variable
-            output << candidate.type->getCTypeName() << " ";
+            output << candidate.lvalue.getType()->getCTypeName() << " ";
 
-        output << candidate.lvalueName;
-        output << " = " << candidate.jsonRoot << ".get<" << candidate.type->getCTypeName() << ">();";
+        output << candidate.lvalue.getName();
+        output << " = " << candidate.jsonRoot << ".get<" << candidate.lvalue.getType()->getCTypeName() << ">();";
         output << std::endl;
         return output.str();
     }
@@ -95,13 +130,12 @@ namespace handsanitizer {
             accessDelimiter = "->";
 
         std::vector<JsonParsingCandidate> parsingCandidatesForMembers;
-        for (auto& member : candidate.type->getNamedMembers()) {
+        for (auto& member : candidate.lvalue.getType()->getNamedMembers()) {
             if (!member.getType()->isArrayTy()) {
                 JsonParsingCandidate memberCandidate{
-                        .lvalueName = declarationManager->getUniqueTmpCPPVariableNameFor(member.getName()),
-                        .jsonRoot = candidate.jsonRoot + "[\"" + member.getName() + "\"]",
-                        .type = member.getType(),
-                        .isForGlobalVariable = false
+                    .lvalue = NamedVariable(declarationManager->getUniqueTmpCPPVariableNameFor(member.getName()), member.getType()),
+                    .jsonRoot = candidate.jsonRoot + "[\"" + member.getName() + "\"]",
+                    .isForGlobalVariable = false
                 };
                 output << getParserRetrievalForNamedType(memberCandidate);
                 parsingCandidatesForMembers.push_back(memberCandidate);
@@ -109,34 +143,33 @@ namespace handsanitizer {
         }
         // initialize
         if (!candidate.isForGlobalVariable && !isMalloced)
-            output << candidate.type->getCTypeName() << " " << candidate.lvalueName << ";" << std::endl;
+            output << candidate.lvalue.getType()->getCTypeName() << " " << candidate.lvalue.getName() << ";" << std::endl;
         int candidateCounter = 0;
-        for (int i = 0; i < candidate.type->getNamedMembers().size(); i++) {
-            if (!candidate.type->getNamedMembers()[i].getType()->isArrayTy()) {
-                output << candidate.lvalueName << accessDelimiter << candidate.type->getNamedMembers()[i].getName() << " = " << parsingCandidatesForMembers[candidateCounter].lvalueName << ";"
+        for (int i = 0; i < candidate.lvalue.getType()->getNamedMembers().size(); i++) {
+            if (!candidate.lvalue.getType()->getNamedMembers()[i].getType()->isArrayTy()) {
+                output << candidate.lvalue.getName() << accessDelimiter << candidate.lvalue.getType()->getNamedMembers()[i].getName() << " = " << parsingCandidatesForMembers[candidateCounter].lvalue.getName() << ";"
                        << std::endl;
                 candidateCounter++;
             }
         }
 
 
-        for (auto& member : candidate.type->getNamedMembers()) {
+        for (auto& member : candidate.lvalue.getType()->getNamedMembers()) {
             // arrays can be also of custom types with arbitrary but finite amounts of nesting, so we need to recurse
             if (member.getType()->isArrayTy()) {
                 int arrSize = member.getType()->getArrayNumElements();
                 Type *arrType = member.getType()->getArrayElementType();
                 std::string iterator_name = this->declarationManager->getUniqueLoopIteratorName(); // we require a name from this function to get proper generation
-                output << "for(int " << iterator_name << " = 0; " << iterator_name << " < " << arrSize << ";"
-                       << iterator_name << "++) {" << std::endl;
+                output << "for(int " << iterator_name << " = 0; " << iterator_name << " < " << arrSize << ";" << iterator_name << "++) {" << std::endl;
 
+                auto newLvalueName = declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalue.getName() + member.getName());
                 JsonParsingCandidate arrayMemberCandidate{
-                        .lvalueName = declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalueName + member.getName()),
-                        .jsonRoot = candidate.jsonRoot + "[\"" + member.getName() + "\"]" + "[" + iterator_name + "]",
-                        .type = arrType,
-                        .isForGlobalVariable = false
+                    .lvalue = NamedVariable(newLvalueName, arrType),
+                    .jsonRoot = candidate.jsonRoot + "[\"" + member.getName() + "\"]" + "[" + iterator_name + "]",
+                    .isForGlobalVariable = false
                 };
                 output << getParserRetrievalForNamedType(arrayMemberCandidate);
-                output << candidate.lvalueName << accessDelimiter << member.getName() << "[" << iterator_name << "] = " << arrayMemberCandidate.lvalueName << ";"
+                output << candidate.lvalue.getName() << accessDelimiter << member.getName() << "[" << iterator_name << "] = " << arrayMemberCandidate.lvalue.getName() << ";"
                        << std::endl;
                 output << "}" << std::endl;
             }
@@ -145,7 +178,7 @@ namespace handsanitizer {
     }
 
     std::string JsonInputParser::getParserRetrievalForPointers(const JsonParsingCandidate &candidate) {
-        if (candidate.type->getPointerElementType()->isPointerTy())
+        if (candidate.lvalue.getType()->getPointerElementType()->isPointerTy())
             return getParserRetrievalForPointersToPointers(candidate);
         else
             return getParserRetrievalForPointersToNonPointers(candidate);
@@ -157,23 +190,22 @@ namespace handsanitizer {
 
         auto lvaluePointee = declarationManager->getUniqueTmpCPPVariableNameFor();
         JsonParsingCandidate pointeeCandidate = JsonParsingCandidate{
-                .lvalueName = lvaluePointee,
-                .jsonRoot = candidate.jsonRoot,
-                .type = candidate.type->getPointerElementType(),
-                .isForGlobalVariable = false // recursed members can't be globals
+            .lvalue = NamedVariable(lvaluePointee, candidate.lvalue.getType()->getPointerElementType()),
+            .jsonRoot = candidate.jsonRoot,
+            .isForGlobalVariable = false // recursed members can't be globals
         };
 
-        output << getParserRetrievalForNamedType(candidate);
+        output << getParserRetrievalForNamedType(pointeeCandidate);
         if (!candidate.isForGlobalVariable)
-            output << candidate.type->getCTypeName() << " ";
-        output << candidate.lvalueName << " = &" << lvaluePointee << ";" << std::endl;
+            output << candidate.lvalue.getNameWithType() << ";";
+        output << candidate.lvalue.getName() << " = &" << lvaluePointee << ";" << std::endl;
 
         return output.str();
     }
 
 
     std::string JsonInputParser::getParserRetrievalForPointersToNonPointers(const JsonParsingCandidate &candidate) {
-        if (candidate.type->getPointerElementType()->isIntegerTy(8)) { // char behavior
+        if (candidate.lvalue.getType()->getPointerElementType()->isIntegerTy(8)) { // char behavior
             return getParserRetrievalForPointerToCharType(candidate);
         } else {
             return getParserRetrievalForPointerToNonCharType(candidate);
@@ -191,29 +223,29 @@ namespace handsanitizer {
     */
     std::string JsonInputParser::getParserRetrievalForPointerToCharType(const JsonParsingCandidate &candidate) {
         std::stringstream output;
-        handsanitizer::Type *pointeeType = candidate.type->getPointerElementType();
+        handsanitizer::Type *pointeeType = candidate.lvalue.getType()->getPointerElementType();
         std::string elTypeName = pointeeType->getCTypeName();
         std::string jsonValue = candidate.jsonRoot;
 
         if (!candidate.isForGlobalVariable)
-            output << elTypeName << "* " << candidate.lvalueName << ";" << std::endl;
+            output << elTypeName << "* " << candidate.lvalue.getName() << ";" << std::endl;
 
 
         output << "if(" << jsonValue << ".is_string()) {" << std::endl;
 
-        std::string candidateLvalueAsString = candidate.lvalueName;
+        std::string candidateLvalueAsString = candidate.lvalue.getName();
 
         //we can't use c_str here because if the string itself contains null, then it it is allowed to misbehave
-        output << getStringFromJson(candidateLvalueAsString, jsonValue, this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalueName),
-                                    this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalueName));
+        output << getStringFromJson(candidateLvalueAsString, jsonValue, this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalue.getName()),
+                                    this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalue.getName()));
 
         output << "}" << std::endl; // end is_string
 
 
         output << "if(" << jsonValue << ".is_number()) {" << std::endl;
-        auto tmpLvalueForParsedChar = declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalueName);
+        auto tmpLvalueForParsedChar = declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalue.getName());
         output << "char " << tmpLvalueForParsedChar << " = " << jsonValue << ".get<char>();" << std::endl;
-        output << candidate.lvalueName << " = &" << tmpLvalueForParsedChar << ";" << std::endl;
+        output << candidate.lvalue.getName() << " = &" << tmpLvalueForParsedChar << ";" << std::endl;
         output << "}" << std::endl; //end is_number
 
 
@@ -227,10 +259,10 @@ namespace handsanitizer {
         output << "if(" << indexedJsonValue << ".is_number() || " << jsonValue << nestedIteratorIndex << ".is_null())" << std::endl;
         output << malloc_size_counter << "++;"; // assume its a char and assume chars take 1 byte
         output << "if(" << indexedJsonValue << ".is_string()){";
-        auto str_len_counter = this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalueName);
+        auto str_len_counter = this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalue.getName());
         output << getStringLengthFromJson(str_len_counter, indexedJsonValue, // don't trust .size for nulled strings
-                                          this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalueName),
-                                          this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalueName), false);
+                                          this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalue.getName()),
+                                          this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalue.getName()), false);
         output << malloc_size_counter << " =  " << malloc_size_counter << " + " << str_len_counter << ";" << std::endl;
         output << "}" << std::endl; // end is_string
 
@@ -239,8 +271,8 @@ namespace handsanitizer {
         // first loop to get the total size
         // then copy
 
-        auto output_buffer_name = this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalueName);
-        auto writeHeadName = this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalueName); // writes to this offset in the buffer
+        auto output_buffer_name = this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalue.getName());
+        auto writeHeadName = this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalue.getName()); // writes to this offset in the buffer
         auto indexed_output_buffer_name = output_buffer_name + "[" + writeHeadName + "]";
         output << "char* " << output_buffer_name << " = (char*)malloc(sizeof(char) * " << malloc_size_counter << ");"
                << std::endl;
@@ -251,11 +283,11 @@ namespace handsanitizer {
         output << "for(int " << nestedIterator << " = 0; " << nestedIterator << " < " << jsonValue << ".size(); "
                << nestedIterator << "++){ " << std::endl;
         output << "if(" << jsonValue << nestedIteratorIndex << ".is_string()){ ";
-        auto str_val = this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalueName);
+        auto str_val = this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalue.getName());
         output << "std::string " << str_val << " = " << indexedJsonValue << ".get<std::string>();";
         // copy the string into the correct position
         // .copy guarantees to not add an extra null char at the end which is what we desire
-        auto charsWritten = this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalueName);
+        auto charsWritten = this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalue.getName());
         output << "auto " << charsWritten << " = " << str_val << ".copy(&" << indexed_output_buffer_name << ", "
                << str_val << ".size(), " << "0);" << std::endl;
         output << writeHeadName << " = " << writeHeadName << " + " << charsWritten << ";" << std::endl;
@@ -275,7 +307,7 @@ namespace handsanitizer {
 
         output << "}" << std::endl; // end for
 
-        output << candidate.lvalueName << " = " << output_buffer_name << ";"
+        output << candidate.lvalue.getName() << " = " << output_buffer_name << ";"
                << std::endl;
         output << "}" << std::endl; // end is_array
 
@@ -285,36 +317,55 @@ namespace handsanitizer {
     std::string JsonInputParser::getParserRetrievalForPointerToNonCharType(const JsonParsingCandidate &candidate) {
         std::stringstream output;
 
-        handsanitizer::Type *pointeeType = candidate.type->getPointerElementType();
+        handsanitizer::Type *pointeeType = candidate.lvalue.getType()->getPointerElementType();
+
         std::string elTypeName = pointeeType->getCTypeName();
         std::string jsonValue = candidate.jsonRoot;
 
-        std::string argument_name = candidate.lvalueName;
+        std::string argument_name = candidate.lvalue.getName();
         if (!candidate.isForGlobalVariable)
-            output << elTypeName << "* " << argument_name << ";" << std::endl;
+            output << candidate.lvalue.getNameWithType() << ";" << std::endl;
 
         if (pointeeType->isStructTy()) {
-            auto cmp = [&candidate](const std::pair<Type*, std::string>& pair){ return candidate.type->getPointerElementType() == pair.first;};
+            auto cmp = [&candidate](const std::pair<Type*, std::string>& pair){ return candidate.lvalue.getType()->getPointerElementType() == pair.first;};
             auto helperFunc = std::find_if(structParsingHelperFunctions.begin(), structParsingHelperFunctions.end(), cmp);
             if(helperFunc == structParsingHelperFunctions.end())
                 throw std::invalid_argument("Trying to parse a structure for which no helper function exists");
 
 
             auto funcName = helperFunc->second;
-            output << candidate.lvalueName << " = " << funcName << "(" << candidate.jsonRoot << ");" << std::endl;
-        } else {
+            output << candidate.lvalue.getName() << " = " << funcName << "(" << candidate.jsonRoot << ");" << std::endl;
+        }
+//        else if(pointeeType->isArrayTy()){
+//            //
+//        }
+        else {  // the pointee type here is scalar
             // if it's an array
+            /*
+             * we malloc room and put the freshly parsed value inside it
+             * however if we don't know the type we have to declare the pointer as
+             */
+
             output << "if(" << jsonValue << ".is_array()) { " << std::endl;
-            std::string malloced_value = declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalueName + "_malloced");
+            std::string malloced_value = declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalue.getName() + "_malloced");
+            auto malloced_tmp_value = NamedVariable(malloced_value, candidate.lvalue.getType());
             std::string arrSize = candidate.jsonRoot + ".size()";
 
-            output << elTypeName << "* " << malloced_value << " = (" << elTypeName << "*) malloc(sizeof(" << elTypeName << ") * " << arrSize << ");"
+            // we get a pointer to an object large enough to hold the size of the object
+            output << malloced_tmp_value.getNameWithType() <<  " = (" << malloced_tmp_value.getType()->getCTypeName() << ") malloc(sizeof(" << elTypeName << ") * " << arrSize << ");"
                    << std::endl;
             output << declarationManager->registerVariableToBeFreed(malloced_value);
 
             std::string iterator_name = declarationManager->getUniqueLoopIteratorName();
             output << "for(int " << iterator_name << " = 0; " << iterator_name << " < " << arrSize << ";" << iterator_name << "++) {" << std::endl;
-            output << malloced_value << "[" << iterator_name << "] = " << jsonValue << "[" << iterator_name << "].get<" << elTypeName << ">();" << std::endl;
+
+            auto parsingCandidateForLoop = JsonParsingCandidate{
+                .lvalue = NamedVariable(std::string(malloced_value + "[" + iterator_name + "]"), pointeeType),
+                .jsonRoot = std::string(jsonValue + "[" + iterator_name + "]"),
+                .isForGlobalVariable = true // the variable is declared outside of the calling scope
+            };
+            output << getParserRetrievalForNamedType(parsingCandidateForLoop);
+//            output << malloced_value << "[" << iterator_name << "] = " << jsonValue << "[" << iterator_name << "].get<" << elTypeName << ">();" << std::endl;
             output << "}" << std::endl; //endfor
 
             output << argument_name << " = " << malloced_value << ";" << std::endl;
@@ -323,13 +374,18 @@ namespace handsanitizer {
             // if its a number
             output << "if(" << jsonValue << ".is_number()){" << std::endl;
             //cast rvalue in case its a char
-            auto malloc_name = this->declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalueName);
-            output << elTypeName << "* " << malloc_name << " = (" << elTypeName << "*) malloc(sizeof(" << elTypeName
-                   << "));" << std::endl;
-            output << this->declarationManager->registerVariableToBeFreed(malloc_name);
-            output << malloc_name << "[0] = (" << elTypeName << ")" << jsonValue << ".get<" << elTypeName << ">();"
-                   << std::endl;
-            output << candidate.lvalueName << " = " << malloc_name << ";" << std::endl;
+            auto malloc_name = NamedVariable(declarationManager->getUniqueTmpCPPVariableNameFor(candidate.lvalue.getName()), candidate.lvalue.getType());
+            output << malloc_name.getNameWithType() << " = (" << malloc_name.getType()->getCTypeName() << ") malloc(sizeof(" << elTypeName << "));" << std::endl;
+            output << this->declarationManager->registerVariableToBeFreed(malloc_name.getName());
+//            output << malloc_name << "[0] = (" << elTypeName << ")" << jsonValue << ".get<" << elTypeName << ">();" << std::endl;
+
+            auto parsingCandidateForNumber = JsonParsingCandidate{
+                .lvalue = NamedVariable(std::string(malloc_name.getName() + "[0]"), pointeeType),
+                .jsonRoot = std::string(jsonValue),
+                .isForGlobalVariable = true // the variable is declared outside of the calling scope
+            };
+            output << getParserRetrievalForNamedType(parsingCandidateForNumber);
+            output << candidate.lvalue.getName() << " = " << malloc_name.getName() << ";" << std::endl;
             output << "}" << std::endl; //end if number
         }
         return output.str();
@@ -383,12 +439,11 @@ namespace handsanitizer {
 
         output << type->getCTypeName() << "* " << localLvalue << " = (" << type->getCTypeName() << "*) malloc(sizeof(" << type->getCTypeName() << "));" << std::endl;
         auto pointeeCandidate = JsonParsingCandidate{
-            .lvalueName = localLvalue,
+            .lvalue = NamedVariable(localLvalue, type),
             .jsonRoot = jsonRoot,
-            .type = type,
             .isForGlobalVariable = false
         };
-        if(!pointeeCandidate.type->isStructTy())
+        if(!pointeeCandidate.lvalue.getType()->isStructTy())
             throw std::invalid_argument("ugh");
         output << getParserRetrievalForStructs(pointeeCandidate, true) << std::endl;
         output << "return " << localLvalue << ";" << std::endl;

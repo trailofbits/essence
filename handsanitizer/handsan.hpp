@@ -18,7 +18,7 @@ namespace handsanitizer {
 
     class Type {
     public:
-        std::string getCTypeName();
+        std::string getCTypeName(std::string identifierName = "");
         std::string getTypeName() const;
 
         explicit Type(TYPE_NAMES typeName) : type(typeName){};
@@ -70,6 +70,8 @@ namespace handsanitizer {
         std::string structName;
         std::vector<NamedVariable> structMembers;
         bool structIsUnion = false;
+
+        std::string getTypeDeclarationForPointerAndArrays(const std::string& identifier = "");
     };
 
 
@@ -79,6 +81,7 @@ namespace handsanitizer {
         std::string name;
         [[nodiscard]] Type* getType() const { return this->type;};
         [[nodiscard]] std::string getName() const { return this->name;};
+        [[nodiscard]] std::string getNameWithType() const;
     };
 
 

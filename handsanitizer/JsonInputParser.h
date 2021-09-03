@@ -9,9 +9,8 @@ namespace handsanitizer{
         /*
          * lvalue is REQUIRED to be a valid name
          */
-        std::string lvalueName;
+        NamedVariable lvalue;
         std::string jsonRoot; // the expected object to be extracted, for non-aggregate this would be the scalar otherwise the array/struct
-        Type* type; // the type of the object to be extracted
         bool isForGlobalVariable; // in case of globals
     };
 
@@ -42,6 +41,7 @@ private:
     std::string getParserRetrievalForStructs(const JsonParsingCandidate &candidate, bool isMalloced);
     std::string getParserRetrievalForGlobalArrays(const JsonParsingCandidate &candidate);
     std::string getParserRetrievalForPointers(const JsonParsingCandidate &candidate);
+
     std::string getParserRetrievalForPointersToNonPointers(const JsonParsingCandidate &candidate);
     std::string getParserRetrievalForPointersToPointers(const JsonParsingCandidate &candidate);
     std::string getParserRetrievalForPointerToCharType(const JsonParsingCandidate &candidate);

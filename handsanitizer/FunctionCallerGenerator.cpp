@@ -117,7 +117,7 @@ namespace handsanitizer {
     std::string FunctionCallerGenerator::getGlobalDeclarationsText() {
         std::stringstream s;
         for (auto &global : this->declarationManager->globals) {
-            s << "" << global.getType()->getCTypeName() << " " << global.getName() << ";" << std::endl;
+            s << global.getNameWithType() << ";" << std::endl;
         }
         return s.str();
     }

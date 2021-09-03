@@ -93,6 +93,7 @@ namespace handsanitizer {
             delimiter = LVALUE_DELIMITER;
 
         bool hasSkippedRoot = false;
+        bool lastElementIsDelimiter = false;
 
         for (auto &s : strings) {
             if (format != GENERATE_FORMAT_CPP_VARIABLE && s == POINTER_DENOTATION)
@@ -108,12 +109,22 @@ namespace handsanitizer {
                 else
                     output << "[\"" << s << "\"]";
             } else {
-                output << s << delimiter;
+                if (std::find(iteratorNames.begin(), iteratorNames.end(), s) != iteratorNames.end()){
+                    if(output.str().back() == '.')
+                        output.seekp(-1, output.cur);
+
+                    output << "[" << s << "]";
+                    lastElementIsDelimiter = false;
+                }
+                else{
+                    output << s << delimiter;
+                    lastElementIsDelimiter = true;
+                }
             }
         }
 
         auto retstring = output.str();
-        if (retstring.length() > 0 && format != GENERATE_FORMAT_JSON_ARRAY_ADDRESSING &&
+        if (lastElementIsDelimiter && retstring.length() > 0 && format != GENERATE_FORMAT_JSON_ARRAY_ADDRESSING &&
             format != GENERATE_FORMAT_JSON_ARRAY_ADDRESSING_WITHOUT_ROOT)
             retstring.pop_back(); //remove trailing delimiter
         return retstring;
