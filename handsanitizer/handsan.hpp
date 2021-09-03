@@ -32,6 +32,7 @@ namespace handsanitizer {
 
         // scalar values
         [[nodiscard]] bool isVoidTy() const { return type == TYPE_NAMES::VOID;} ;
+        [[nodiscard]] bool isScalarTy() const { return isIntegerTy() || isFloatTy() || isDoubleTy();};
         [[nodiscard]] bool isIntegerTy() const { return type == TYPE_NAMES::INTEGER;};
         [[nodiscard]] bool isIntegerTy(int size) const { return type == TYPE_NAMES::INTEGER && integerSize == size;};
         [[nodiscard]] unsigned int getBitWidth() const { return integerSize;};
@@ -46,6 +47,24 @@ namespace handsanitizer {
         // pointer
         [[nodiscard]] bool isPointerTy() const { return type == TYPE_NAMES::POINTER;};
         [[nodiscard]] Type *getPointerElementType() const { return pointerElementType;};
+        [[nodiscard]] Type *getPointerBaseElementType() const {
+            Type* lastType = pointerElementType;
+            while(lastType->isPointerTy()){
+                lastType = lastType->getPointerElementType();
+            }
+            return lastType;
+        };
+
+        [[nodiscard]] int getPointerDepth() const {
+            int depth =0 ;
+            Type* lastType = pointerElementType;
+            while(lastType->isPointerTy()){
+                depth++;
+                lastType = lastType->getPointerElementType();
+            }
+            return depth;
+        };
+
 
         // struct
         [[nodiscard]] bool isStructTy() const { return type == TYPE_NAMES::STRUCT;};

@@ -1,9 +1,18 @@
 {
-  "globals": {
-    "third_char_of_non_null_terminated_array": 255
-  },
   "arguments": {
-    "array_non_null": ["ab"]
+    "array_non_null": {
+      "meta_data": {
+        "type": "char*"
+      },
+      "value": ["ab"]
+    }
+  },
+  "globals": {
+    "third_char_of_non_null_terminated_array": {
+      "meta_data": {
+        "type": "char"
+      },
+      "value": 255
+    }
   }
 }
-
