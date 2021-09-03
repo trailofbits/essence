@@ -1,25 +1,98 @@
 {
-  "globals": {
-  },
   "arguments": {
     "b": {
-      "m0": {
-        "m0": [
-          1,
-          2,
-          3,
-          4,
-          5
-        ]
+      "meta_data": {
+        "struct_name": "B",
+        "type": "struct"
       },
-      "m1": [
-        6,
-        7,
-        8,
-        9,
-        10
-      ]
+      "value": {
+        "m0": {
+          "meta_data": {
+            "struct_name": "A",
+            "type": "struct*"
+          },
+          "value": {
+            "m0": {
+              "meta_data": {
+                "element_type": "int32_t",
+                "size": 5,
+                "type": "array"
+              },
+              "value": [
+                {
+                  "meta_data": {
+                    "type": "int32_t"
+                  },
+                  "value": 1
+                },
+                {
+                  "meta_data": {
+                    "type": "int32_t"
+                  },
+                  "value": 2
+                },
+                {
+                  "meta_data": {
+                    "type": "int32_t"
+                  },
+                  "value": 3
+                },
+                {
+                  "meta_data": {
+                    "type": "int32_t"
+                  },
+                  "value": 4
+                },
+                {
+                  "meta_data": {
+                    "type": "int32_t"
+                  },
+                  "value": 5
+                }
+              ]
+            }
+          }
+        },
+        "m1": {
+          "meta_data": {
+            "element_type": "int32_t",
+            "size": 5,
+            "type": "array"
+          },
+          "value": [
+            {
+              "meta_data": {
+                "type": "int32_t"
+              },
+              "value": 6
+            },
+            {
+              "meta_data": {
+                "type": "int32_t"
+              },
+              "value": 7
+            },
+            {
+              "meta_data": {
+                "type": "int32_t"
+              },
+              "value": 8
+            },
+            {
+              "meta_data": {
+                "type": "int32_t"
+              },
+              "value": 9
+            },
+            {
+              "meta_data": {
+                "type": "int32_t"
+              },
+              "value": 10
+            }
+          ]
+        }
+      }
     }
   }
 }
-

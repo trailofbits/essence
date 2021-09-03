@@ -16,7 +16,26 @@
           "meta_data": {
             "type": "int32_t*"
           },
-          "value": [2,3,4]
+          "value": [
+            {
+              "meta_data": {
+                "type": "int32_t"
+              },
+              "value": 2
+            },
+            {
+              "meta_data": {
+                "type": "int32_t"
+              },
+              "value": 3
+            },
+            {
+              "meta_data": {
+                "type": "int32_t"
+              },
+              "value": 4
+            }
+          ]
         },
         "m2": {
           "meta_data": {

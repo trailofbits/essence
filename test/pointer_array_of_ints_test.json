@@ -4,7 +4,20 @@
       "meta_data": {
         "type": "int32_t*"
       },
-      "value": [2,1]
+      "value": [
+        {
+          "meta_data": {
+            "type": "int32_t"
+          },
+          "value": 2
+        },
+        {
+          "meta_data": {
+            "type": "int32_t"
+          },
+          "value": 1
+        }
+      ]
     }
   },
   "globals": {

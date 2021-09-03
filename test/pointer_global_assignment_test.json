@@ -2,15 +2,17 @@
   "globals": {
     "int_pointer_global_val_post_call": {
       "meta_data": {
+        "pointer_depth": "0",
         "type": "int32_t"
       },
       "value": 255
     },
     "int_pointer_global_val_pre_call": {
       "meta_data": {
-        "type": "int32_t*"
+        "pointer_depth": "1",
+        "type": "int32_t"
       },
-      "value": [1]
+      "value": 1
     }
   }
 }
