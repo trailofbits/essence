@@ -1,0 +1,123 @@
+{
+    "arguments": {
+        "a": {
+            "value": [
+                {
+                    "meta_data": {
+                        "element_type": "int32_t*** ",
+                        "pointer_depth": "1",
+                        "size": 3,
+                        "type": "array"
+                    },
+                    "value": [
+                        {
+                            "meta_data": {
+                                "pointer_depth": "3",
+                                "type": "int32_t"
+                            },
+                            "value": 9
+                        },
+                        {
+                            "meta_data": {
+                                "pointer_depth": "3",
+                                "type": "int32_t"
+                            },
+                            "value": 2
+                        },
+                        {
+                            "meta_data": {
+                                "pointer_depth": "3",
+                                "type": "int32_t"
+                            },
+                            "value": 3
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    "globals": {
+        "multi_array": {
+            "meta_data": {
+                "element_type": "int32_t*** [2]",
+                "pointer_depth": "0",
+                "size": 3,
+                "type": "array"
+            },
+            "value": [
+                {
+                    "meta_data": {
+                        "element_type": "int32_t*** ",
+                        "pointer_depth": "0",
+                        "size": 2,
+                        "type": "array"
+                    },
+                    "value": [
+                        {
+                            "meta_data": {
+                                "pointer_depth": "3",
+                                "type": "int32_t"
+                            },
+                            "value": 4
+                        },
+                        {
+                            "meta_data": {
+                                "pointer_depth": "3",
+                                "type": "int32_t"
+                            },
+                            "value": 5
+                        }
+                    ]
+                },
+                {
+                    "meta_data": {
+                        "element_type": "int32_t*** ",
+                        "pointer_depth": "0",
+                        "size": 2,
+                        "type": "array"
+                    },
+                    "value": [
+                        {
+                            "meta_data": {
+                                "pointer_depth": "3",
+                                "type": "int32_t"
+                            },
+                            "value": 6
+                        },
+                        {
+                            "meta_data": {
+                                "pointer_depth": "3",
+                                "type": "int32_t"
+                            },
+                            "value": 7
+                        }
+                    ]
+                },
+                {
+                    "meta_data": {
+                        "element_type": "int32_t*** ",
+                        "pointer_depth": "0",
+                        "size": 2,
+                        "type": "array"
+                    },
+                    "value": [
+                        {
+                            "meta_data": {
+                                "pointer_depth": "3",
+                                "type": "int32_t"
+                            },
+                            "value": 8
+                        },
+                        {
+                            "meta_data": {
+                                "pointer_depth": "3",
+                                "type": "int32_t"
+                            },
+                            "value": 1
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+}

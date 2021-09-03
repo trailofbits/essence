@@ -216,11 +216,18 @@ namespace handsanitizer {
             nlohmann::json jsonForArg;
             std::vector<std::pair<Type *, std::string >> typePath;
             typePath.emplace_back(arg.getType(), arg.getName());
-            json["arguments"][arg.getName()] = getJsonInputTemplateTextForJsonRvalueAsJson(*arg.getType(), typePath);
+            if(arg.getType()->isPointerTy() && arg.getType()->getPointerBaseElementType()->isArrayTy()){
+                std::vector<nlohmann::json> rvalues;
+                rvalues.push_back(getJsonInputTemplateTextForJsonRvalueAsJson(*arg.getType(), typePath));
+                json["arguments"][arg.getName()]["value"] = rvalues;
+            }
+            else
+                json["arguments"][arg.getName()] = getJsonInputTemplateTextForJsonRvalueAsJson(*arg.getType(), typePath);
 
         }
         of << json.dump(4) << std::endl;
     }
+
 
     std::string FunctionCallerGenerator::getMainText() {
         return R"(
